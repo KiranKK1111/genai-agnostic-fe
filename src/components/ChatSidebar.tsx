@@ -38,9 +38,7 @@ import {
   ChevronRight,
   MessageCircle,
   X as CloseIcon,
-  Pencil,
   Trash2,
-  Check,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -165,28 +163,31 @@ export function ChatSidebar({
     if (isMobile && onMobileClose) onMobileClose();
   };
 
+  // Click on session title to start inline rename
   const startRename = useCallback(
     (e: React.MouseEvent, chat: Chat) => {
       e.stopPropagation();
       setRenamingChatId(chat.id);
       setRenameValue(chat.title);
-      setTimeout(() => renameInputRef.current?.select(), 50);
+      setTimeout(() => {
+        renameInputRef.current?.focus();
+        renameInputRef.current?.select();
+      }, 50);
     },
     []
   );
 
   const commitRename = useCallback(
     async (chat: Chat) => {
+      if (renamingChatId !== chat.id) return;
       const trimmed = renameValue.trim();
       if (trimmed && trimmed !== chat.title && onRenameChat && chat.sessionId) {
         await onRenameChat(chat.id, chat.sessionId, trimmed);
       }
       setRenamingChatId(null);
     },
-    [renameValue, onRenameChat]
+    [renameValue, onRenameChat, renamingChatId]
   );
-
-  const cancelRename = () => setRenamingChatId(null);
 
   const confirmDelete = useCallback(
     async (chat: Chat) => {
@@ -311,36 +312,46 @@ export function ChatSidebar({
                   {filteredChats.map((chat) => (
                     <ListItem key={chat.id} disablePadding sx={{ mb: 0.25 }}>
                       {renamingChatId === chat.id ? (
-                        // Inline rename input
+                        // Inline rename — appears when user clicks on the session title
                         <Box
                           sx={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: 0.5,
-                            px: 1,
-                            py: 0.5,
+                            mx: 1,
+                            my: 0.25,
                             width: '100%',
                           }}
                         >
+                          <ListItemIcon sx={{ minWidth: 28 }}>
+                            <MessageSquare size={14} />
+                          </ListItemIcon>
                           <TextField
                             inputRef={renameInputRef}
                             size="small"
                             value={renameValue}
                             onChange={(e) => setRenameValue(e.target.value)}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') commitRename(chat);
-                              if (e.key === 'Escape') cancelRename();
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                commitRename(chat);
+                              }
+                              if (e.key === 'Escape') setRenamingChatId(null);
                             }}
+                            onBlur={() => commitRename(chat)}
                             autoFocus
                             fullWidth
-                            sx={{ '& .MuiInputBase-input': { fontSize: '0.8rem', py: 0.5 } }}
+                            sx={{
+                              '& .MuiInputBase-input': {
+                                fontSize: '0.8rem',
+                                py: 0.5,
+                                px: 1,
+                              },
+                              '& .MuiOutlinedInput-root': {
+                                borderRadius: '6px',
+                              },
+                            }}
                           />
-                          <IconButton size="small" onClick={() => commitRename(chat)} color="primary">
-                            <Check size={14} />
-                          </IconButton>
-                          <IconButton size="small" onClick={cancelRename}>
-                            <CloseIcon size={14} />
-                          </IconButton>
                         </Box>
                       ) : (
                         <StyledListItemButton
@@ -356,7 +367,15 @@ export function ChatSidebar({
                               <Typography
                                 variant="caption"
                                 noWrap
-                                sx={{ fontSize: '0.8rem', display: 'block' }}
+                                onDoubleClick={(e) => {
+                                  // Double-click on title to rename
+                                  if (onRenameChat) startRename(e, chat);
+                                }}
+                                sx={{
+                                  fontSize: '0.8rem',
+                                  display: 'block',
+                                  userSelect: 'none',
+                                }}
                               >
                                 {chat.title.length > 28
                                   ? `${chat.title.substring(0, 28)}\u2026`
@@ -364,20 +383,9 @@ export function ChatSidebar({
                               </Typography>
                             }
                           />
-                          {/* Action icons visible on hover */}
-                          <Box className="chat-actions" sx={{ display: 'flex', gap: 0.25 }}>
-                            {onRenameChat && (
-                              <Tooltip title="Rename" placement="top">
-                                <IconButton
-                                  size="small"
-                                  onClick={(e) => startRename(e, chat)}
-                                  sx={{ p: 0.25 }}
-                                >
-                                  <Pencil size={12} />
-                                </IconButton>
-                              </Tooltip>
-                            )}
-                            {onDeleteChat && (
+                          {/* Delete icon — no edit icon, rename is triggered by clicking the title */}
+                          {onDeleteChat && (
+                            <Box className="chat-actions" sx={{ display: 'flex' }}>
                               <Tooltip title="Delete" placement="top">
                                 <IconButton
                                   size="small"
@@ -385,13 +393,16 @@ export function ChatSidebar({
                                     e.stopPropagation();
                                     setDeleteDialogChatId(chat.id);
                                   }}
-                                  sx={{ p: 0.25, '&:hover': { color: 'error.main' } }}
+                                  sx={{
+                                    p: 0.5,
+                                    '&:hover': { color: 'error.main' },
+                                  }}
                                 >
-                                  <Trash2 size={12} />
+                                  <Trash2 size={16} />
                                 </IconButton>
                               </Tooltip>
-                            )}
-                          </Box>
+                            </Box>
+                          )}
                         </StyledListItemButton>
                       )}
                     </ListItem>

@@ -97,6 +97,7 @@ export interface MessageSchema {
 export interface SessionHistoryResponse {
   session_id: string;
   messages: MessageSchema[];
+  pending_clarification?: ClarifyingQuestion | null;
 }
 
 // ============================================================================
@@ -137,8 +138,10 @@ export interface ClarifyingQuestion {
   question: string;
   options?: Array<string | ClarifyingQuestionOption>;
   mode?: string;
+  support_for_custom_replies?: boolean;
   required_field?: string;
   input_type?: "number" | "string" | "date";
+  note?: string;
 }
 
 export interface ColumnMeta {
@@ -481,11 +484,21 @@ export async function getSessionHistory(
     query: m.role === "user" ? m.content : undefined,
     queried_at: m.created_at,
     responded_at: m.created_at,
-    response: m.role === "assistant" ? { message: m.content, sql: m.content_sql } : undefined,
+    // Use the rich response object from backend if available (includes data, visualizations, clarification);
+    // fall back to minimal { message, sql } for older messages that lack it.
+    response: m.role === "assistant"
+      ? (m.response && (m.response.visualizations || m.response.data || m.response.clarifying_question)
+          ? m.response
+          : { message: m.content, sql: m.content_sql })
+      : undefined,
     feedback: m.reaction === "like" ? "LIKED" : m.reaction === "dislike" ? "DISLIKED" : null,
     follow_ups: parseJsonField(m.follow_ups, []),
   }));
-  return { session_id: sessionId, messages };
+  return {
+    session_id: sessionId,
+    messages,
+    pending_clarification: res.data.pending_clarification || null,
+  };
 }
 
 /**
@@ -586,6 +599,7 @@ export async function sendQuery(
   let truncated = false;
   let followUps: string[] = [];
   let clarification: ClarifyingQuestion | null = null;
+  let clarificationQaPairs: { question: string; answer: string; type: string }[] = [];
   let errorMsg: string | null = null;
   let messageId = "";
   let sessionTitle = "";
@@ -644,6 +658,10 @@ export async function sendQuery(
 
       case "viz_config":
         vizConfig = event.config || null;
+        break;
+
+      case "clarification_qa":
+        clarificationQaPairs = event.pairs || [];
         break;
 
       case "query_plan":
@@ -713,6 +731,11 @@ export async function sendQuery(
   // If clarification, format as clarifying_question object for ClarifyingQuestionHandler
   if (clarification) {
     dynamicResponse.clarifying_question = clarification;
+  }
+
+  // Attach clarification Q&A pairs (emitted when all clarifications are resolved)
+  if (clarificationQaPairs.length > 0) {
+    (dynamicResponse as any).clarification_qa = clarificationQaPairs;
   }
 
   return {

@@ -347,6 +347,8 @@ export function ClarifyingQuestionHandler({
     </Box>
   );
 
+  const allowCustom = clarifyingQuestion.support_for_custom_replies !== false;
+
   const renderContent = () => {
     switch (clarifyingQuestion.type) {
       case 'binary':
@@ -354,14 +356,14 @@ export function ClarifyingQuestionHandler({
       case 'multiple_choice':
         return renderMultipleChoice();
       case 'value_input':
-        return renderValueInput();
+        return allowCustom ? renderValueInput() : renderMultipleChoice();
       case 'entity_disambiguation':
       case 'ambiguous_table':
       case 'ambiguous_value':
       case 'ambiguous_column':
         return renderEntityDisambiguation();
       case 'missing_parameter':
-        return renderMissingParameter();
+        return allowCustom ? renderMissingParameter() : renderMultipleChoice();
       case 'viz_type':
         return renderMultiSelect();
       default:
@@ -372,6 +374,10 @@ export function ClarifyingQuestionHandler({
         // If options are present, treat as multiple choice
         if (clarifyingQuestion.options && clarifyingQuestion.options.length > 0) {
           return renderMultipleChoice();
+        }
+        // Only show free-text input if custom replies are allowed
+        if (allowCustom) {
+          return renderValueInput();
         }
         return null;
     }

@@ -56,6 +56,10 @@ export interface ChatInterfaceProps {
   /** Optional callback fired when the user wants to stop a request. */
   onStopRequest?: () => void;
   currentProgressStep?: string;
+  /** Pending clarification to show as a popup above the input box. */
+  pendingClarification?: import('../api').ClarifyingQuestion | null;
+  /** Dismiss the clarification popup without answering. */
+  onDismissClarification?: () => void;
 }
 
 export interface WelcomeCardItem {

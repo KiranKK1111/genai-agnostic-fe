@@ -10,6 +10,7 @@ import { WelcomeScreen } from './WelcomeScreen';
 import { MessageRow } from './MessageRow';
 import { QueryProgressSteps } from './QueryProgressSteps';
 import { ChatHeader } from './ChatHeader';
+import { ClarificationPopup } from './ClarificationPopup';
 import {
   ChatContainer,
   MessagesWrapper,
@@ -31,6 +32,8 @@ export function ChatInterface({
   isLoading,
   onStopRequest,
   currentProgressStep,
+  pendingClarification,
+  onDismissClarification,
 }: ChatInterfaceProps) {
   const theme = useTheme();
   // Use md (960px) — same boundary as Dashboard and ChatSidebar so
@@ -76,33 +79,36 @@ export function ChatInterface({
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Auto-scroll to bottom when new messages arrive (only if user was at bottom)
+  // Auto-scroll to bottom when new messages arrive (always — user just sent or received a message)
   const prevMessagesLengthRef = useRef(messages.length);
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    // Only auto-scroll if:
-    // 1. A new message was added
-    // 2. User was at bottom OR hasn't scrolled yet
     const hasNewMessage = messages.length > prevMessagesLengthRef.current;
-    if (hasNewMessage && (isAtBottom || !userHasScrolledRef.current)) {
-      // Use requestAnimationFrame for smooth scrolling
+    if (hasNewMessage) {
       requestAnimationFrame(() => {
         container.scrollTop = container.scrollHeight;
       });
+      // Reset scroll flag so typewriter auto-scroll also works for this new message
+      userHasScrolledRef.current = false;
     }
-    
-    prevMessagesLengthRef.current = messages.length;
-  }, [messages.length, isAtBottom]);
 
-  // Scroll to bottom on initial load
+    prevMessagesLengthRef.current = messages.length;
+  }, [messages.length]);
+
+  // Scroll to bottom on initial load or session switch (component remount)
   useEffect(() => {
     const container = scrollContainerRef.current;
-    if (container && messages.length > 0 && prevMessagesLengthRef.current === 0) {
-      container.scrollTop = container.scrollHeight;
+    if (container && messages.length > 0) {
+      // Use rAF to ensure DOM has rendered the messages before scrolling
+      requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight;
+      });
+      userHasScrolledRef.current = false;
     }
-  }, [messages.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps = runs once on mount (session switch triggers remount via key=)
 
   // Monitor content height changes during typewriter animation
   useEffect(() => {
@@ -280,12 +286,22 @@ export function ChatInterface({
           )}
         </MessagesWrapper>
 
-        {/* Input Area */}
-        <ChatInputArea
-          onSendMessage={onSendMessage}
-          isLoading={isLoading}
-          onStopRequest={onStopRequest}
-        />
+        {/* Input Area — replaced by ClarificationPopup when a clarification is pending */}
+        {pendingClarification && onClarifyingQuestionConfirm ? (
+          <ClarificationPopup
+            clarification={pendingClarification}
+            onConfirm={(value, clarificationType) =>
+              onClarifyingQuestionConfirm(value, '', clarificationType)
+            }
+            onDismiss={onDismissClarification || (() => {})}
+          />
+        ) : (
+          <ChatInputArea
+            onSendMessage={onSendMessage}
+            isLoading={isLoading}
+            onStopRequest={onStopRequest}
+          />
+        )}
       </ChatInnerBox>
     </ChatContainer>
   );

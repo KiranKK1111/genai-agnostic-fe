@@ -14,6 +14,7 @@ import {
   deleteChat,
   renameSessionTitle,
   setError,
+  setPendingClarification,
 } from '../features/chatSlice';
 import type { ChatMessage } from '../features/chatSlice';
 import {
@@ -169,6 +170,15 @@ export function useSessionManagement() {
                     messages,
                   })
                 );
+                // Restore pending clarification popup if backend has one
+                if (history.pending_clarification) {
+                  dispatch(
+                    setPendingClarification({
+                      chatId: session.session_id,
+                      clarification: history.pending_clarification,
+                    })
+                  );
+                }
               } catch (historyErr) {
                 log('[SessionManagement] Failed to load history for session', session.session_id);
               }

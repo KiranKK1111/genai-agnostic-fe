@@ -25,7 +25,8 @@ export function Dashboard() {
   
   const chats = useSelector((state: RootState) => state.chat.chats);
   const currentChatId = useSelector((state: RootState) => state.chat.currentChatId);
-  const isLoading = useSelector((state: RootState) => state.chat.isLoading);
+  const loadingChatId = useSelector((state: RootState) => state.chat.loadingChatId);
+  const isLoading = loadingChatId === currentChatId && loadingChatId !== null;
   const error = useSelector((state: RootState) => state.chat.error);
   const dispatch = useDispatch<AppDispatch>();
 
@@ -89,11 +90,13 @@ export function Dashboard() {
   const { isInitializing, createNewChat, loadChatHistory, refreshSessions, deleteChatSession, renameChatSession } = useSessionManagement();
 
   const currentChat = chats.find((c) => c.id === currentChatId) || null;
-  const { handleSendMessage, handleRefineResponse, handleClarifyingQuestionConfirm, stopCurrentRequest, currentProgressStep } = useMessageHandler(
+  const { handleSendMessage, handleRefineResponse, handleClarifyingQuestionConfirm, stopCurrentRequest, currentProgressStep, dismissClarification } = useMessageHandler(
     currentChatId || '',
     currentChat?.sessionId,
     refreshSessions
   );
+  // Read pending clarification from Redux (survives page reload)
+  const pendingClarification = currentChat?.pendingClarification || null;
 
   // Wrap handleSendMessage to create a chat first if none exists
   const handleSendMessageWithChat = async (content: string, files?: File[]) => {
@@ -123,9 +126,10 @@ export function Dashboard() {
   };
 
   const handleNewChat = async (): Promise<{ chatId: string; sessionId: string } | null> => {
+    const newChatId = Date.now().toString();
     try {
       dispatch(clearError());
-      dispatch(setLoading(true));
+      dispatch(setLoading(newChatId));
 
       const result = await createNewChat();
       if (!result) return null;
@@ -140,7 +144,7 @@ export function Dashboard() {
       dispatch(setError(errorMsg));
       return null;
     } finally {
-      dispatch(setLoading(false));
+      dispatch(setLoading(null));
     }
   };
 
@@ -151,7 +155,7 @@ export function Dashboard() {
 
     if (chat?.sessionId && (!chat.messages || chat.messages.length === 0)) {
       try {
-        dispatch(setLoading(true));
+        dispatch(setLoading(chatId));
         const messages = await loadChatHistory(chatId, chat.sessionId);
         if (messages && messages.length > 0) {
           dispatch(
@@ -169,7 +173,7 @@ export function Dashboard() {
           )
         );
       } finally {
-        dispatch(setLoading(false));
+        dispatch(setLoading(null));
       }
     }
   };
@@ -374,6 +378,8 @@ export function Dashboard() {
             onStopRequest={stopCurrentRequest}
             currentProgressStep={currentProgressStep}
             onClarifyingQuestionConfirm={handleClarifyingQuestionConfirm}
+            pendingClarification={pendingClarification}
+            onDismissClarification={dismissClarification}
           />
         </Box>
       </Box>

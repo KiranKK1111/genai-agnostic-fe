@@ -76,19 +76,24 @@ export interface Chat {
    * Updated with each message. Used for debugging/monitoring.
    */
   sessionMetadata?: SessionMetadata;
+  /**
+   * Pending clarification question to display as popup (survives page reload).
+   */
+  pendingClarification?: any | null;
 }
 
 interface ChatState {
   chats: Chat[];
   currentChatId: string | null;
-  isLoading: boolean;
+  /** ID of the chat currently loading/streaming. null = nothing loading. */
+  loadingChatId: string | null;
   error: string | null;
 }
 
 const initialState: ChatState = {
   chats: [],
   currentChatId: null,
-  isLoading: false,
+  loadingChatId: null,
   error: null,
 };
 
@@ -117,11 +122,19 @@ const chatSlice = createSlice({
     },
 
     selectChat(state, action: PayloadAction<string | null>) {
+      // Clear isNew on the outgoing chat's messages so typewriter
+      // doesn't replay when switching back to it later
+      if (state.currentChatId && state.currentChatId !== action.payload) {
+        const outgoing = state.chats.find((c) => c.id === state.currentChatId);
+        if (outgoing) {
+          outgoing.messages.forEach((m) => { m.isNew = false; });
+        }
+      }
       state.currentChatId = action.payload;
     },
 
-    setLoading(state, action: PayloadAction<boolean>) {
-      state.isLoading = action.payload;
+    setLoading(state, action: PayloadAction<string | null>) {
+      state.loadingChatId = action.payload;
     },
 
     setError(state, action: PayloadAction<string | null>) {
@@ -148,7 +161,9 @@ const chatSlice = createSlice({
       const { chatId, message } = action.payload;
       const chat = state.chats.find((c) => c.id === chatId);
       if (chat) {
-        chat.messages.push({ ...message, isNew: true });
+        // Only typewrite if this chat is currently visible
+        const isCurrent = state.currentChatId === chatId;
+        chat.messages.push({ ...message, isNew: isCurrent });
       }
     },
 
@@ -292,6 +307,20 @@ const chatSlice = createSlice({
       const chat = state.chats.find((c) => c.id === chatId || c.sessionId === chatId);
       if (chat) {
         chat.title = title;
+      }
+    },
+
+    /**
+     * Set/clear pending clarification for a chat (survives page reload via backend).
+     */
+    setPendingClarification(
+      state,
+      action: PayloadAction<{ chatId: string; clarification: any | null }>
+    ) {
+      const { chatId, clarification } = action.payload;
+      const chat = state.chats.find((c) => c.id === chatId);
+      if (chat) {
+        chat.pendingClarification = clarification;
       }
     },
 
@@ -450,6 +479,7 @@ export const {
   clearChats,
   deleteChat,
   renameSessionTitle,
+  setPendingClarification,
   setFollowUpSuggestions,
   updateMessageWithMetadata,
   setRefining,

@@ -69,8 +69,11 @@ function MessageRowComponent({
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isDark = theme.palette.mode === 'dark';
   
-  const isLastAssistantMessage = 
+  const isLastAssistantMessage =
     index === totalMessages - 1 && message.role === 'assistant' && !isLoading;
+
+  // Q&A pair messages (clarification exchanges) are read-only and non-editable
+  const isQAPair = message.role === 'user' && message.content.startsWith('Q:');
 
   const [selectedVizType, setSelectedVizType] = React.useState<string>('table');
   const [barChartConfig, setBarChartConfig] = React.useState<BarChartConfigType | null>(null);
@@ -344,16 +347,16 @@ function MessageRowComponent({
                 width: 'fit-content',
                 alignItems: 'flex-end',
                 alignSelf: 'flex-end',
-                '&:hover .edit-pencil': { opacity: 1 },
+                '&:hover .edit-pencil': { opacity: isQAPair ? 0 : 1 },
               }}
             >
               <UserMessageBubble
                 elevation={0}
-                onClick={startEditing}
+                onClick={isQAPair ? undefined : startEditing}
                 sx={{
-                  cursor: isLoading ? 'default' : 'text',
+                  cursor: isLoading || isQAPair ? 'default' : 'text',
                   transition: 'all 0.2s ease',
-                  '&:hover': !isLoading ? {
+                  '&:hover': !isLoading && !isQAPair ? {
                     boxShadow: '0 4px 16px rgba(59, 130, 246, 0.45)',
                     transform: 'translateY(-1px)',
                   } : {},
@@ -361,14 +364,18 @@ function MessageRowComponent({
               >
                 <Typography
                   variant="body2"
+                  component="div"
                   sx={{
                     fontSize: isMobile ? '13px' : '14px',
                     lineHeight: 1.5,
                     fontWeight: 500,
+                    whiteSpace: 'pre-wrap',
+                    '& strong': { fontWeight: 700 },
                   }}
-                >
-                  {message.content}
-                </Typography>
+                  dangerouslySetInnerHTML={{
+                    __html: message.content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'),
+                  }}
+                />
               </UserMessageBubble>
 
               {/* Attachment chips */}
@@ -436,8 +443,8 @@ function MessageRowComponent({
               </Typography>
             </Box>
 
-            {/* Visualization Type Icons */}
-            {message.response?.visualizations && availableVizTypes.length > 0 && (
+            {/* Visualization Type Icons — only show when multiple viz types are available */}
+            {message.response?.visualizations && availableVizTypes.length > 1 && (
               <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
                 {availableVizTypes.map((type: string) => {
                   const IconComponent = vizIcons[type] || Table2;
