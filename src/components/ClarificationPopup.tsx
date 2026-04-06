@@ -90,20 +90,21 @@ export function ClarificationPopup({ clarification, onConfirm, onDismiss }: Clar
   const [selected, setSelected] = useState<string[]>([]);
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
+  const isTextInput = clarification.mode === 'text_input';
   const isMultiSelect = clarification.mode === 'multi_select' || clarification.type === 'viz_type';
-  const allowCustomReplies = clarification.support_for_custom_replies !== false && !isMultiSelect;
+  const allowCustomReplies = isTextInput || (clarification.support_for_custom_replies !== false && !isMultiSelect);
   const hasCustomText = customInput.trim().length > 0;
   const hasSelection = selected.length > 0;
   const canSend = hasCustomText || hasSelection;
 
-  const options = clarification.options || [];
+  const options = isTextInput ? [] : (clarification.options || []);
   const totalOptions = options.length;
 
   useEffect(() => {
-    if (allowCustomReplies) {
+    if (allowCustomReplies || isTextInput) {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [allowCustomReplies]);
+  }, [allowCustomReplies, isTextInput]);
 
   // Keyboard shortcuts: Escape to dismiss, number keys to select options
   useEffect(() => {
@@ -230,6 +231,21 @@ export function ClarificationPopup({ clarification, onConfirm, onDismiss }: Clar
               <X size={16} />
             </IconButton>
           </Box>
+
+          {/* Hint text — shown for text_input mode (e.g. available fields) */}
+          {isTextInput && clarification.hint && (
+            <Box sx={{ px: 2.5, pb: 1 }}>
+              <Typography
+                sx={{
+                  fontSize: '12px',
+                  color: isDark ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.4)',
+                  lineHeight: 1.4,
+                }}
+              >
+                {clarification.hint}
+              </Typography>
+            </Box>
+          )}
 
           {/* Options list — vertical, one per line */}
           {options.length > 0 && (
@@ -424,7 +440,7 @@ export function ClarificationPopup({ clarification, onConfirm, onDismiss }: Clar
                   value={customInput}
                   onChange={(e) => setCustomInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Something else"
+                  placeholder={clarification.placeholder || "Something else"}
                   minRows={1}
                   maxRows={isMobile ? 3 : 4}
                 />

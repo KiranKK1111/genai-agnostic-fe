@@ -134,7 +134,7 @@ export interface ClarifyingQuestionOption {
 }
 
 export interface ClarifyingQuestion {
-  type?: "binary" | "multiple_choice" | "missing_parameter" | "value_input" | "entity_disambiguation" | "ambiguous_table" | "ambiguous_value" | "ambiguous_column" | string;
+  type?: "binary" | "multiple_choice" | "missing_parameter" | "value_input" | "entity_disambiguation" | "ambiguous_table" | "ambiguous_value" | "ambiguous_column" | "filter_criteria" | "source_clarification" | string;
   question: string;
   options?: Array<string | ClarifyingQuestionOption>;
   mode?: string;
@@ -142,6 +142,8 @@ export interface ClarifyingQuestion {
   required_field?: string;
   input_type?: "number" | "string" | "date";
   note?: string;
+  placeholder?: string;
+  hint?: string;
 }
 
 export interface ColumnMeta {
