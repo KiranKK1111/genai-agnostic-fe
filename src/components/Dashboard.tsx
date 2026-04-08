@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'; // useRef kept for dragCounter
-import { Box, Alert, Snackbar, Typography, CircularProgress, IconButton, useTheme, useMediaQuery } from '@mui/material';
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { Box, Alert, Snackbar, Typography, CircularProgress, IconButton, useTheme, useMediaQuery, ToggleButtonGroup, ToggleButton } from '@mui/material';
 import { ChatSidebar } from './ChatSidebar';
 import { ChatInterface } from './ChatInterface';
-import { MoreMenu } from './MoreMenu';
-import { Sparkles, Menu } from 'lucide-react';
+import { ChatHeader } from './ChatHeader'; // used for dashboard-mode header only
+import { Sparkles, Menu, MessageSquare, LayoutDashboard } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState, AppDispatch } from '../store';
 import {
@@ -19,10 +19,12 @@ import {
 import { useSessionManagement } from '../hooks/useSessionManagement';
 import { useMessageHandler } from '../hooks/useMessageHandler';
 
+const DashboardPage = lazy(() => import('./dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
+
 export function Dashboard() {
   const muiTheme = useTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
-  
+
   const chats = useSelector((state: RootState) => state.chat.chats);
   const currentChatId = useSelector((state: RootState) => state.chat.currentChatId);
   const loadingChatId = useSelector((state: RootState) => state.chat.loadingChatId);
@@ -30,14 +32,13 @@ export function Dashboard() {
   const error = useSelector((state: RootState) => state.chat.error);
   const dispatch = useDispatch<AppDispatch>();
 
+  const [viewMode, setViewMode] = useState<'chat' | 'dashboard'>('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  
-  // Counter tracks nested dragenter/dragleave pairs to avoid overlay flicker on child elements
+
   const dragCounterRef = useRef(0);
 
-  // Only show overlay for real file drags, not text selections
   const isFileDrag = (dt: DataTransfer) => Array.from(dt.types).includes('Files');
 
   const resetDrag = useCallback(() => {
@@ -61,7 +62,7 @@ export function Dashboard() {
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     if (!isFileDrag(e.dataTransfer)) return;
-    e.preventDefault(); // required to allow drop
+    e.preventDefault();
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -95,23 +96,21 @@ export function Dashboard() {
     currentChat?.sessionId,
     refreshSessions
   );
-  // Read pending clarification from Redux (survives page reload)
   const pendingClarification = currentChat?.pendingClarification || null;
 
-  // Wrap handleSendMessage to create a chat first if none exists
   const handleSendMessageWithChat = async (content: string, files?: File[]) => {
+    // Auto-switch to chat when user sends a message
+    setViewMode('chat');
+
     let targetChatId = currentChatId;
     const chatTitle = content.length > 50 ? content.substring(0, 50) + '...' : content;
 
-    // If no chat exists, create one locally first (without backend session yet)
     if (!targetChatId) {
       const chatId = Date.now().toString();
       dispatch(newChat({ title: chatTitle, id: chatId }));
       dispatch(selectChat(chatId));
       targetChatId = chatId;
     } else {
-      // If this is the first message in an existing chat (e.g. created via "New Chat" button),
-      // update the title locally and on the backend
       const chat = chats.find((c) => c.id === targetChatId);
       if (chat && (!chat.messages || chat.messages.length === 0) && chat.title === 'New Chat') {
         dispatch(renameSessionTitle({ chatId: targetChatId, title: chatTitle }));
@@ -121,7 +120,6 @@ export function Dashboard() {
       }
     }
 
-    // Now send the message with the target chatId - this will create the backend session if needed
     handleSendMessage(content, files, targetChatId);
   };
 
@@ -138,6 +136,9 @@ export function Dashboard() {
       dispatch(selectChat(result.chatId));
       dispatch(setChatSessionId({ chatId: result.chatId, sessionId: result.sessionId }));
 
+      // Switch to chat view when creating a new chat
+      setViewMode('chat');
+
       return result;
     } catch (err: any) {
       const errorMsg = err?.response?.data?.detail || 'Failed to create new chat session';
@@ -149,6 +150,9 @@ export function Dashboard() {
   };
 
   const handleSelectChat = async (chatId: string) => {
+    // Auto-switch to chat when selecting a session
+    setViewMode('chat');
+
     dispatch(selectChat(chatId));
 
     const chat = chats.find((c) => c.id === chatId);
@@ -178,9 +182,6 @@ export function Dashboard() {
     }
   };
 
-  // Don't auto-create chat on mount - let user start conversation naturally
-  // When user sends first message without a session, it will be created automatically
-
   if (isInitializing) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh', '@supports not (height: 100dvh)': { height: '100vh' } }}>
@@ -197,69 +198,39 @@ export function Dashboard() {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {/* Full-screen file drop overlay - covers sidebar + chat area */}
+      {/* File drop overlay */}
       {isDragging && (
         <Box
           sx={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(59, 130, 246, 0.08)',
-            backdropFilter: 'blur(4px)',
-            border: '2px dashed #3b82f6',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            pointerEvents: 'none',
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(59, 130, 246, 0.08)', backdropFilter: 'blur(4px)',
+            border: '2px dashed #3b82f6', display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', zIndex: 9999, pointerEvents: 'none',
           }}
         >
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 80,
-              height: 80,
-              backgroundColor: 'rgba(59, 130, 246, 0.2)',
-              borderRadius: '16px',
-              mb: 2,
-            }}
-          >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 80, height: 80, backgroundColor: 'rgba(59, 130, 246, 0.2)', borderRadius: '16px', mb: 2 }}>
             <Sparkles size={40} color="#3b82f6" />
           </Box>
           <Box sx={{ textAlign: 'center' }}>
-            <Box sx={{ fontSize: '22px', fontWeight: 700, color: '#3b82f6', mb: 1 }}>
-              Add anything
-            </Box>
-            <Box sx={{ fontSize: '14px', color: '#94a3b8' }}>
-              Drop any file here to add it to the conversation
-            </Box>
+            <Box sx={{ fontSize: '22px', fontWeight: 700, color: '#3b82f6', mb: 1 }}>Add anything</Box>
+            <Box sx={{ fontSize: '14px', color: '#94a3b8' }}>Drop any file here to add it to the conversation</Box>
           </Box>
         </Box>
       )}
 
       <Snackbar
-        open={!!error}
-        autoHideDuration={5000}
+        open={!!error} autoHideDuration={5000}
         onClose={() => dispatch(clearError())}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
         sx={{ zIndex: 1400 }}
       >
-        <Alert
-          severity="error"
-          variant="filled"
-          onClose={() => dispatch(clearError())}
-          sx={{ width: '100%', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
-        >
+        <Alert severity="error" variant="filled" onClose={() => dispatch(clearError())} sx={{ width: '100%', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
           {error}
         </Alert>
       </Snackbar>
 
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative', minWidth: 0 }}>
+        {/* Sidebar — always visible */}
         <ChatSidebar
           chats={chats.map((c) => ({
             id: c.id,
@@ -277,110 +248,89 @@ export function Dashboard() {
           isMobileOpen={isMobileSidebarOpen}
           onMobileClose={() => setIsMobileSidebarOpen(false)}
         />
+
+        {/* Main content area */}
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', minWidth: 0, overflow: 'hidden' }}>
-          {/* Mobile header with hamburger menu */}
+          {/* Mobile header — only shown on mobile */}
           {isMobile && (
             <Box
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '8px 8px',
-                position: 'sticky',
-                top: 0,
-                zIndex: 10,
-                borderBottom: `1px solid ${
-                  muiTheme.palette.mode === 'dark'
-                    ? 'rgba(99, 102, 241, 0.15)'
-                    : 'rgba(99, 102, 241, 0.1)'
-                }`,
-                backgroundColor:
-                  muiTheme.palette.mode === 'dark'
-                    ? 'rgba(15, 23, 42, 0.85)'
-                    : 'rgba(255, 255, 255, 0.85)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 8px', position: 'sticky', top: 0, zIndex: 10,
+                borderBottom: `1px solid ${muiTheme.palette.mode === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.1)'}`,
+                backgroundColor: muiTheme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.85)',
                 backdropFilter: 'blur(12px)',
                 paddingTop: 'calc(8px + env(safe-area-inset-top, 0px))',
                 minHeight: 48,
               }}
             >
-              <IconButton
-                onClick={() => setIsMobileSidebarOpen(true)}
-                sx={{ width: 44, height: 44, flexShrink: 0 }}
-              >
+              <IconButton onClick={() => setIsMobileSidebarOpen(true)} sx={{ width: 44, height: 44, flexShrink: 0 }}>
                 <Menu size={22} />
               </IconButton>
-
-              {/* Center: icon + title (matches desktop ChatHeader) */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flex: 1, minWidth: 0, ml: 0.5 }}>
                 <Box sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: 32,
-                  height: 32,
-                  flexShrink: 0,
-                  background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #3b82f6 100%)',
-                  borderRadius: '9px',
-                  boxShadow: '0 0 8px rgba(99, 102, 241, 0.3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, flexShrink: 0,
+                  background: 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)', borderRadius: '9px',
+                  boxShadow: '0 0 8px rgba(13, 71, 161, 0.3)',
                 }}>
                   <Sparkles size={16} color="white" />
                 </Box>
                 <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                  <Typography
-                    noWrap
-                    sx={{
-                      fontWeight: 700,
-                      fontSize: '0.95rem',
-                      letterSpacing: '-0.01em',
-                      lineHeight: 1.2,
-                      background:
-                        muiTheme.palette.mode === 'dark'
-                          ? 'linear-gradient(135deg, #e0e7ff, #a5b4fc)'
-                          : 'linear-gradient(135deg, #312e81, #6366f1)',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      backgroundClip: 'text',
-                    }}
-                  >
+                  <Typography noWrap sx={{
+                    fontWeight: 700, fontSize: '0.95rem', letterSpacing: '-0.01em', lineHeight: 1.2,
+                    background: muiTheme.palette.mode === 'dark' ? 'linear-gradient(135deg, #e0e7ff, #a5b4fc)' : 'linear-gradient(135deg, #312e81, #6366f1)',
+                    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                  }}>
                     SDM AI Assistant
-                  </Typography>
-                  <Typography
-                    noWrap
-                    sx={{
-                      fontSize: '0.6rem',
-                      lineHeight: 1.2,
-                      color: muiTheme.palette.mode === 'dark'
-                        ? 'rgba(255,255,255,0.4)'
-                        : 'rgba(0,0,0,0.4)',
-                      letterSpacing: '0.04em',
-                    }}
-                  >
-                    AI-powered insights for Service Desk
                   </Typography>
                 </Box>
               </Box>
-
-              {/* Right: 3-dot menu */}
-              <MoreMenu
-                onCopy={() => console.log('copy')}
-                onShare={() => console.log('share')}
-              />
+              <ToggleButtonGroup
+                value={viewMode} exclusive
+                onChange={(_, v) => v && setViewMode(v)}
+                size="small"
+                sx={{
+                  '& .MuiToggleButton-root': { px: 1, py: 0.25, border: 'none' },
+                  '& .Mui-selected': {
+                    bgcolor: muiTheme.palette.mode === 'dark' ? 'rgba(99,102,241,0.25) !important' : 'rgba(99,102,241,0.12) !important',
+                    color: `${muiTheme.palette.primary.main} !important`,
+                  },
+                }}
+              >
+                <ToggleButton value="dashboard"><LayoutDashboard size={16} /></ToggleButton>
+                <ToggleButton value="chat"><MessageSquare size={16} /></ToggleButton>
+              </ToggleButtonGroup>
             </Box>
           )}
-          <ChatInterface
-            key={currentChatId} // Force remount when switching chats
-            messages={currentChat?.messages || []}
-            onSendMessage={handleSendMessageWithChat}
-            onRefineResponse={handleRefineResponse}
-            followUpSuggestions={currentChat?.followUpSuggestions}
-            isRefining={currentChat?.isRefining || false}
-            isLoading={isLoading}
-            onStopRequest={stopCurrentRequest}
-            currentProgressStep={currentProgressStep}
-            onClarifyingQuestionConfirm={handleClarifyingQuestionConfirm}
-            pendingClarification={pendingClarification}
-            onDismissClarification={dismissClarification}
-          />
+
+          {/* Desktop header — always visible, single instance to prevent layout shift */}
+          {!isMobile && (
+            <ChatHeader viewMode={viewMode} onViewModeChange={setViewMode} />
+          )}
+
+          {/* Content: Dashboard or Chat */}
+          {viewMode === 'dashboard' ? (
+            <Suspense fallback={<Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><CircularProgress size={28} /></Box>}>
+              <DashboardPage />
+            </Suspense>
+          ) : (
+            <ChatInterface
+              key={currentChatId}
+              messages={currentChat?.messages || []}
+              onSendMessage={handleSendMessageWithChat}
+              onRefineResponse={handleRefineResponse}
+              followUpSuggestions={currentChat?.followUpSuggestions}
+              isRefining={currentChat?.isRefining || false}
+              isLoading={isLoading}
+              onStopRequest={stopCurrentRequest}
+              currentProgressStep={currentProgressStep}
+              onClarifyingQuestionConfirm={handleClarifyingQuestionConfirm}
+              pendingClarification={pendingClarification}
+              onDismissClarification={dismissClarification}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+            />
+          )}
         </Box>
       </Box>
     </Box>

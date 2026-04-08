@@ -9,14 +9,12 @@ import { ChatInputArea } from './ChatInputArea';
 import { WelcomeScreen } from './WelcomeScreen';
 import { MessageRow } from './MessageRow';
 import { QueryProgressSteps } from './QueryProgressSteps';
-import { ChatHeader } from './ChatHeader';
+
 import { ClarificationPopup } from './ClarificationPopup';
 import {
-  ChatContainer,
   MessagesWrapper,
   VirtuosoContainer,
   VirtuosoInner,
-  ChatInnerBox,
 } from './ChatInterface.styles';
 import type { ChatInterfaceProps, Message } from './ChatInterface.types';
 
@@ -180,18 +178,7 @@ export function ChatInterface({
   });
 
   return (
-    <ChatContainer sx={{ position: 'relative', padding: 0.5 }}>
-      <ChatInnerBox sx={{ backgroundColor: 'transparent' }}>
-        {/* Hide on mobile — Dashboard provides its own mobile header with hamburger */}
-        {!isMobile && (
-          <ChatHeader
-            title="SDM AI Assistant"
-            showIcon={true}
-            onCopy={() => console.log('copy')}
-            onShare={() => console.log('share')}
-          />
-        )}
-
+    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', position: 'relative' }}>
         {/* Messages Area */}
         <MessagesWrapper sx={{ position: 'relative' }}>
           {messages.length === 0 ? (
@@ -302,7 +289,6 @@ export function ChatInterface({
             onStopRequest={onStopRequest}
           />
         )}
-      </ChatInnerBox>
-    </ChatContainer>
+    </Box>
   );
 }

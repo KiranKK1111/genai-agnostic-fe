@@ -85,16 +85,16 @@ const SidebarContainer = styled(Box)(({ theme }) => ({
 }));
 
 const GradientAvatar = styled(Avatar)({
-  background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+  background: 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)',
 });
 
 const GradientButton = styled(Button)({
-  background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+  background: 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)',
   color: '#ffffff',
   fontWeight: 500,
   textTransform: 'none',
   '&:hover': {
-    background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
+    background: 'linear-gradient(135deg, #0a3d8f 0%, #1256a0 100%)',
   },
 });
 

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs basename:*)",
+      "Bash(find \"d:/SDM GENAI/GENAI/sdb-genai-backend-be/data/SQL Scripts\" -name \"*.sql\" -exec basename {} \\\\;)"
+    ]
+  }
+}

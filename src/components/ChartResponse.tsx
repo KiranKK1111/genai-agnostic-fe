@@ -159,7 +159,7 @@ export function ChartResponse() {
               marginBottom: "16px",
               fontWeight: 600,
               background:
-                "linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)",
+                "linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               fontSize: "16px",
@@ -291,7 +291,7 @@ export function ChartResponse() {
               marginBottom: "16px",
               fontWeight: 600,
               background:
-                "linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)",
+                "linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
               fontSize: "16px",

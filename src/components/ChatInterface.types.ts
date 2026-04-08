@@ -60,6 +60,10 @@ export interface ChatInterfaceProps {
   pendingClarification?: import('../api').ClarifyingQuestion | null;
   /** Dismiss the clarification popup without answering. */
   onDismissClarification?: () => void;
+  /** Current view mode for the header toggle. */
+  viewMode?: 'chat' | 'dashboard';
+  /** Callback to change view mode from the header toggle. */
+  onViewModeChange?: (mode: 'chat' | 'dashboard') => void;
 }
 
 export interface WelcomeCardItem {

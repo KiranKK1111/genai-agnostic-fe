@@ -45,12 +45,12 @@ const StyledCard = styled(Card)(({ theme }) => ({
 const GradientAvatar = styled(Avatar)({
   width: 64,
   height: 64,
-  background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-  boxShadow: '0 8px 24px rgba(59, 130, 246, 0.4)',
+  background: 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)',
+  boxShadow: '0 8px 24px rgba(13, 71, 161, 0.4)',
 });
 
 const GradientText = styled(Typography)({
-  background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+  background: 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)',
   WebkitBackgroundClip: 'text',
   WebkitTextFillColor: 'transparent',
   backgroundClip: 'text',
@@ -58,16 +58,16 @@ const GradientText = styled(Typography)({
 });
 
 const GradientButton = styled(Button)({
-  background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+  background: 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)',
   color: '#ffffff',
   padding: '12px 24px',
   fontSize: '15px',
   fontWeight: 500,
   textTransform: 'none',
-  boxShadow: '0 4px 14px rgba(59, 130, 246, 0.4)',
+  boxShadow: '0 4px 14px rgba(13, 71, 161, 0.4)',
   '&:hover': {
-    background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
-    boxShadow: '0 6px 20px rgba(59, 130, 246, 0.5)',
+    background: 'linear-gradient(135deg, #0a3d8f 0%, #1256a0 100%)',
+    boxShadow: '0 6px 20px rgba(13, 71, 161, 0.5)',
   },
   '&:disabled': {
     opacity: 0.6,

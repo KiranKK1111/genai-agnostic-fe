@@ -17,24 +17,13 @@ import { styled } from '@mui/material/styles';
 export const ChatContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
   flexDirection: 'column',
-  height: '100dvh',
-  '@supports not (height: 100dvh)': {
-    height: '100vh',
-  },
-  backgroundColor: theme.palette.mode === 'dark' ? '#0d0d0d' : '#f5f5f5',
+  // No fixed height — parent (Dashboard.tsx) controls the full-height layout.
+  // Using flex: 1 so it fills the remaining space below the shared header.
   flex: 1,
+  backgroundColor: theme.palette.mode === 'dark' ? '#0d0d0d' : '#f5f5f5',
   overflow: 'hidden',
-  padding: '5px',
-  gap: '8px',
-  transition: 'padding 0.2s ease',
-  [theme.breakpoints.down('lg')]: {
-    padding: '3px',
-    gap: '4px',
-  },
-  [theme.breakpoints.down('md')]: {
-    padding: 0,
-    gap: 0,
-  },
+  padding: 0,
+  gap: 0,
 }));
 
 export const ChatInnerBox = styled(Box)(({ theme }) => ({
@@ -42,27 +31,10 @@ export const ChatInnerBox = styled(Box)(({ theme }) => ({
   flexDirection: 'column',
   flex: 1,
   minWidth: 0,
-  borderRadius: '12px',
-  backgroundColor: theme.palette.mode === 'dark' ? '#1a1a1a' : '#ffffff',
-  boxShadow:
-    theme.palette.mode === 'dark'
-      ? '0 4px 12px rgba(0, 0, 0, 0.3)'
-      : '0 2px 8px rgba(0, 0, 0, 0.08)',
   overflow: 'hidden',
-  border: `1px solid ${
-    theme.palette.mode === 'dark'
-      ? 'rgba(255, 255, 255, 0.1)'
-      : 'rgba(0, 0, 0, 0.08)'
-  }`,
-  transition: 'border-radius 0.2s ease',
-  [theme.breakpoints.down('lg')]: {
-    borderRadius: '8px',
-  },
-  [theme.breakpoints.down('md')]: {
-    borderRadius: 0,
-    boxShadow: 'none',
-    border: 'none',
-  },
+  // No border/shadow/padding — keeps layout identical to DashboardPage
+  // so toggling between views causes zero shift.
+  backgroundColor: 'transparent',
 }));
 
 // ─── Messages area ────────────────────────────────────────────────────────────
@@ -200,19 +172,18 @@ export const UserMessageGroup = styled(Box)({
 });
 
 export const UserMessageBubble = styled(Paper)(({ theme }) => ({
-  background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+  background: 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)',
   color: '#ffffff',
   borderRadius: '18px',
   padding: '10px 15px',
   overflowWrap: 'break-word',
   wordBreak: 'break-word',
-  // Dynamic width: shrink-wrap short text, expand to full for long text
   width: 'fit-content',
   maxWidth: '100%',
-  boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)',
+  boxShadow: '0 2px 8px rgba(13, 71, 161, 0.3)',
   transition: 'box-shadow 0.2s ease',
   '&:hover': {
-    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)',
+    boxShadow: '0 4px 12px rgba(13, 71, 161, 0.4)',
   },
   [theme.breakpoints.down('md')]: {
     padding: '10px 14px',
@@ -296,10 +267,10 @@ export const AssistantContentBubble = styled(Paper)(({ theme }) => ({
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
 export const GradientAvatar = styled(Avatar)({
-  background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+  background: 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)',
   width: 36,
   height: 36,
-  boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)',
+  boxShadow: '0 2px 8px rgba(13, 71, 161, 0.3)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',

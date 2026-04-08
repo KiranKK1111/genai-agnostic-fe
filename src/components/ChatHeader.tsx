@@ -6,9 +6,11 @@ import {
   useTheme,
   useMediaQuery,
   Tooltip,
+  ToggleButtonGroup,
+  ToggleButton,
 } from '@mui/material';
 import { styled, keyframes } from '@mui/material/styles';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, LayoutDashboard, MessageSquare } from 'lucide-react';
 import { MoreMenu } from './MoreMenu';
 
 const shimmer = keyframes`
@@ -17,8 +19,8 @@ const shimmer = keyframes`
 `;
 
 const pulseGlow = keyframes`
-  0%, 100% { box-shadow: 0 0 8px rgba(99, 102, 241, 0.3), 0 0 0 rgba(99, 102, 241, 0); }
-  50% { box-shadow: 0 0 12px rgba(99, 102, 241, 0.5), 0 0 20px rgba(99, 102, 241, 0.15); }
+  0%, 100% { box-shadow: 0 0 8px rgba(13, 71, 161, 0.3), 0 0 0 rgba(13, 71, 161, 0); }
+  50% { box-shadow: 0 0 12px rgba(13, 71, 161, 0.5), 0 0 20px rgba(13, 71, 161, 0.15); }
 `;
 
 const IconContainer = styled(Box)({
@@ -28,7 +30,7 @@ const IconContainer = styled(Box)({
   width: 36,
   height: 36,
   borderRadius: '10px',
-  background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #3b82f6 100%)',
+  background: 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)',
   animation: `${pulseGlow} 3s ease-in-out infinite`,
   flexShrink: 0,
   position: 'relative',
@@ -37,7 +39,7 @@ const IconContainer = styled(Box)({
     position: 'absolute',
     inset: -1,
     borderRadius: '11px',
-    background: 'linear-gradient(135deg, #6366f1, #8b5cf6, #3b82f6)',
+    background: 'linear-gradient(135deg, #0d47a1, #1565c0)',
     zIndex: -1,
     opacity: 0.4,
     filter: 'blur(4px)',
@@ -67,6 +69,8 @@ interface ChatHeaderProps {
   onRefresh?: () => void;
   onShare?: () => void;
   isLoading?: boolean;
+  viewMode?: 'chat' | 'dashboard';
+  onViewModeChange?: (mode: 'chat' | 'dashboard') => void;
 }
 
 export function ChatHeader({
@@ -76,6 +80,8 @@ export function ChatHeader({
   onRefresh,
   onShare,
   isLoading = false,
+  viewMode,
+  onViewModeChange,
 }: ChatHeaderProps) {
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
@@ -99,12 +105,12 @@ export function ChatHeader({
         minHeight: { xs: 48, sm: 52 },
         borderBottom: `1px solid ${
           theme.palette.mode === 'dark'
-            ? 'rgba(99, 102, 241, 0.15)'
+            ? 'rgba(255, 255, 255, 0.08)'
             : 'rgba(99, 102, 241, 0.1)'
         }`,
         backgroundColor:
           theme.palette.mode === 'dark'
-            ? 'rgba(15, 23, 42, 0.6)'
+            ? 'rgba(26, 26, 26, 0.95)'
             : 'rgba(255, 255, 255, 0.8)',
         backdropFilter: 'blur(12px)',
       }}
@@ -139,13 +145,34 @@ export function ChatHeader({
         </Box>
       </Box>
 
-      {/* Right side: 3-dot menu */}
+      {/* Right side: view toggle */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-        <MoreMenu
-          onCopy={onCopy}
-          onShare={onShare}
-          customItems={customItems}
-        />
+        {viewMode && onViewModeChange && (
+          <ToggleButtonGroup
+            value={viewMode} exclusive
+            onChange={(_, v) => v && onViewModeChange(v)}
+            size="small"
+            sx={{
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: 2,
+              overflow: 'hidden',
+              '& .MuiToggleButton-root': {
+                px: 1.5, py: 0.4, gap: 0.5, textTransform: 'none',
+                fontSize: '0.75rem', fontWeight: 600, border: 'none',
+                color: theme.palette.text.secondary,
+              },
+              '& .Mui-selected': {
+                bgcolor: theme.palette.mode === 'dark'
+                  ? 'rgba(99, 102, 241, 0.25) !important'
+                  : 'rgba(99, 102, 241, 0.12) !important',
+                color: `${theme.palette.primary.main} !important`,
+              },
+            }}
+          >
+            <ToggleButton value="dashboard"><LayoutDashboard size={14} /> Dashboards</ToggleButton>
+            <ToggleButton value="chat"><MessageSquare size={14} /> AI Chat</ToggleButton>
+          </ToggleButtonGroup>
+        )}
       </Box>
     </Box>
   );

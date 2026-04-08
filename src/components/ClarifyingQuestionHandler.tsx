@@ -58,7 +58,7 @@ export function ClarifyingQuestionHandler({
   const toggleMultiSelect = (value: string) => {
     if (isLocked) return;
     setMultiSelected((prev) =>
-      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
+      prev.indexOf(value) !== -1 ? prev.filter((v) => v !== value) : [...prev, value]
     );
   };
 
@@ -293,7 +293,7 @@ export function ClarifyingQuestionHandler({
         {clarifyingQuestion.options?.map((option, idx) => {
           const label = typeof option === 'string' ? option : option.label;
           const value = typeof option === 'string' ? option : option.value || option.label;
-          const isSelected = multiSelected.includes(value);
+          const isSelected = multiSelected.indexOf(value) !== -1;
           return (
             <Chip
               key={value || `opt-${idx}`}
