@@ -5,15 +5,15 @@ const getThemeOptions = (mode: 'light' | 'dark'): ThemeOptions => ({
     mode,
     ...(mode === 'light'
       ? {
-          primary: { main: '#3b82f6', light: '#60a5fa', dark: '#2563eb', contrastText: '#ffffff' },
-          secondary: { main: '#8b5cf6', light: '#a78bfa', dark: '#7c3aed', contrastText: '#ffffff' },
+          primary: { main: '#1565c0', light: '#1976d2', dark: '#0d47a1', contrastText: '#ffffff' },
+          secondary: { main: '#1976d2', light: '#42a5f5', dark: '#1565c0', contrastText: '#ffffff' },
           background: { default: '#f8fafc', paper: '#ffffff' },
           text: { primary: '#0f172a', secondary: '#475569' },
           divider: 'rgba(226, 232, 240, 0.8)',
         }
       : {
-          primary: { main: '#3b82f6', light: '#60a5fa', dark: '#2563eb', contrastText: '#ffffff' },
-          secondary: { main: '#8b5cf6', light: '#a78bfa', dark: '#7c3aed', contrastText: '#ffffff' },
+          primary: { main: '#1565c0', light: '#42a5f5', dark: '#0d47a1', contrastText: '#ffffff' },
+          secondary: { main: '#1976d2', light: '#42a5f5', dark: '#1565c0', contrastText: '#ffffff' },
           background: { default: '#0d0d0d', paper: '#1a1a1a' },
           text: { primary: '#f1f5f9', secondary: '#cbd5e1' },
           divider: 'rgba(148, 163, 184, 0.2)',
@@ -48,9 +48,9 @@ const getThemeOptions = (mode: 'light' | 'dark'): ThemeOptions => ({
           '&:hover': { boxShadow: 'none' },
         },
         contained: {
-          background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+          background: 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)',
           '&:hover': {
-            background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
+            background: 'linear-gradient(135deg, #0a3d8f 0%, #1256a0 100%)',
           },
         },
       },

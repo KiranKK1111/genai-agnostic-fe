@@ -77,7 +77,7 @@ function MessageRowComponent({
 
   const [selectedVizType, setSelectedVizType] = React.useState<string>('table');
   const [barChartConfig, setBarChartConfig] = React.useState<BarChartConfigType | null>(null);
-  const [feedback, setFeedback] = React.useState<FeedbackValue | null>(null);
+  const [feedback, setFeedback] = React.useState<FeedbackValue | null>(message.feedback || null);
 
   const { token } = useAuth();
 

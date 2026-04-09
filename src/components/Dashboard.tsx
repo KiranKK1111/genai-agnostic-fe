@@ -278,7 +278,7 @@ export function Dashboard() {
                 <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                   <Typography noWrap sx={{
                     fontWeight: 700, fontSize: '0.95rem', letterSpacing: '-0.01em', lineHeight: 1.2,
-                    background: muiTheme.palette.mode === 'dark' ? 'linear-gradient(135deg, #e0e7ff, #a5b4fc)' : 'linear-gradient(135deg, #312e81, #6366f1)',
+                    background: muiTheme.palette.mode === 'dark' ? 'linear-gradient(135deg, #bbdefb, #64b5f6)' : 'linear-gradient(135deg, #0d47a1, #1565c0)',
                     WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
                   }}>
                     SDM AI Assistant
@@ -292,8 +292,8 @@ export function Dashboard() {
                 sx={{
                   '& .MuiToggleButton-root': { px: 1, py: 0.25, border: 'none' },
                   '& .Mui-selected': {
-                    bgcolor: muiTheme.palette.mode === 'dark' ? 'rgba(99,102,241,0.25) !important' : 'rgba(99,102,241,0.12) !important',
-                    color: `${muiTheme.palette.primary.main} !important`,
+                    bgcolor: muiTheme.palette.mode === 'dark' ? 'rgba(21,101,192,0.3) !important' : 'rgba(13,71,161,0.12) !important',
+                    color: muiTheme.palette.mode === 'dark' ? '#60a5fa !important' : '#0d47a1 !important',
                   },
                 }}
               >

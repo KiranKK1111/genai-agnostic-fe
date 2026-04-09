@@ -228,24 +228,6 @@ export function LoginPage() {
                 )}
               </GradientButton>
 
-              <Stack direction="row" justifyContent="center" spacing={1} sx={{ mt: 2 }}>
-                <Typography variant="caption" color="text.secondary">
-                  {isLogin ? "Don't have an account?" : 'Already have an account?'}
-                </Typography>
-                <LinkButton onClick={handleToggleMode} disabled={isLoading}>
-                  {isLogin ? 'Sign up' : 'Sign in'}
-                </LinkButton>
-              </Stack>
-
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ display: 'block', textAlign: 'center', mt: 3 }}
-              >
-                {isLogin
-                  ? 'Demo: Use any username and password to login'
-                  : 'Create a new account to get started'}
-              </Typography>
             </Box>
           </CardContent>
         </StyledCard>

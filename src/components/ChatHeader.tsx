@@ -52,8 +52,8 @@ const GradientTitle = styled(Typography)(({ theme }) => ({
   letterSpacing: '-0.01em',
   background:
     theme.palette.mode === 'dark'
-      ? 'linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 30%, #a5b4fc 60%, #818cf8 100%)'
-      : 'linear-gradient(135deg, #312e81 0%, #4338ca 30%, #6366f1 60%, #818cf8 100%)',
+      ? 'linear-gradient(135deg, #bbdefb 0%, #90caf9 30%, #64b5f6 60%, #42a5f5 100%)'
+      : 'linear-gradient(135deg, #0d47a1 0%, #1565c0 30%, #1976d2 60%, #1e88e5 100%)',
   backgroundSize: '200% auto',
   WebkitBackgroundClip: 'text',
   WebkitTextFillColor: 'transparent',
@@ -163,9 +163,11 @@ export function ChatHeader({
               },
               '& .Mui-selected': {
                 bgcolor: theme.palette.mode === 'dark'
-                  ? 'rgba(99, 102, 241, 0.25) !important'
-                  : 'rgba(99, 102, 241, 0.12) !important',
-                color: `${theme.palette.primary.main} !important`,
+                  ? 'rgba(21, 101, 192, 0.3) !important'
+                  : 'rgba(13, 71, 161, 0.12) !important',
+                color: theme.palette.mode === 'dark'
+                  ? '#60a5fa !important'
+                  : '#0d47a1 !important',
               },
             }}
           >
