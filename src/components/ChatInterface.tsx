@@ -180,7 +180,7 @@ export function ChatInterface({
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', position: 'relative' }}>
         {/* Messages Area */}
-        <MessagesWrapper sx={{ position: 'relative' }}>
+        <MessagesWrapper sx={{ position: 'relative' }} data-messages-root>
           {messages.length === 0 ? (
             <WelcomeScreen onSendMessage={onSendMessage} />
           ) : (
@@ -246,23 +246,23 @@ export function ChatInterface({
                     width: { xs: 44, md: 40 },
                     height: { xs: 44, md: 40 },
                     borderRadius: '50%',
-                    backgroundColor: '#3b82f6',
+                    background: 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)',
+                    boxShadow: '0 4px 12px rgba(13, 71, 161, 0.4)',
                     transition: 'all 0.3s ease',
                     zIndex: 101,
                     touchAction: 'manipulation',
                     '&:hover': {
-                      backgroundColor: '#2563eb',
-                      boxShadow: '0 6px 16px rgba(59, 130, 246, 0.5)',
+                      background: 'linear-gradient(135deg, #0a3d8f 0%, #1256a0 100%)',
+                      boxShadow: '0 6px 16px rgba(13, 71, 161, 0.5)',
                       transform: 'translateX(-50%) translateY(-2px)',
                     },
                     '&:active': {
                       transform: 'translateX(-50%) translateY(0)',
-                      backgroundColor: '#1d4ed8',
+                      background: 'linear-gradient(135deg, #08306b 0%, #0d47a1 100%)',
                     },
                   }}
                 >

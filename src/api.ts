@@ -24,6 +24,117 @@ const apiClient = axios.create({
   baseURL: API_URL,
 });
 
+// ── Global 401 handler with refresh-and-retry ─────────────────────────
+// OAuth-style refresh flow:
+//   1. Any protected request that 401s is held back.
+//   2. We call /api/auth/refresh with the stored refresh_token.
+//   3. On success, swap in the new access_token and retry the original
+//      request ONCE. Other in-flight 401s wait on the same refresh promise
+//      so we never fire a refresh stampede.
+//   4. On failure (no refresh token, expired refresh token, etc.), emit
+//      the `sdm:auth-expired` event so AuthContext can fully log out.
+
+let _refreshPromise: Promise<string | null> | null = null;
+
+async function _performRefresh(): Promise<string | null> {
+  // Tokens live in sessionStorage so closing the tab forces a fresh login.
+  const stored = sessionStorage.getItem("sdm_refresh_token");
+  if (!stored) return null;
+  try {
+    const res = await axios.post(`${API_URL}/api/auth/refresh`, {
+      refresh_token: stored,
+    });
+    const newAccess = res.data?.token;
+    const newRefresh = res.data?.refresh_token;
+    if (!newAccess) return null;
+    sessionStorage.setItem("sdm_token", newAccess);
+    if (newRefresh) sessionStorage.setItem("sdm_refresh_token", newRefresh);
+    if (res.data?.expires_in) {
+      const expiresAt = Date.now() + Number(res.data.expires_in) * 1000;
+      sessionStorage.setItem("sdm_token_expires_at", String(expiresAt));
+    }
+    // Let AuthContext & other listeners know the token was rotated so they
+    // can update in-memory state and re-arm timers.
+    try {
+      window.dispatchEvent(
+        new CustomEvent("sdm:token-refreshed", {
+          detail: {
+            token: newAccess,
+            refresh_token: newRefresh,
+            expires_in: res.data?.expires_in,
+            user: res.data?.user,
+          },
+        })
+      );
+    } catch {
+      /* ignore */
+    }
+    return newAccess;
+  } catch {
+    return null;
+  }
+}
+
+function _getOrStartRefresh(): Promise<string | null> {
+  if (!_refreshPromise) {
+    _refreshPromise = _performRefresh().finally(() => {
+      // Release the lock after the current refresh settles — future 401s
+      // start a fresh refresh cycle.
+      setTimeout(() => {
+        _refreshPromise = null;
+      }, 0);
+    });
+  }
+  return _refreshPromise;
+}
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const status = error?.response?.status;
+    const originalReq = error?.config;
+    const url: string = originalReq?.url || "";
+
+    // Don't touch auth endpoints — a bad password / bad refresh token must
+    // bubble up to the caller as-is.
+    const isAuthEndpoint =
+      url.includes("/api/auth/login") ||
+      url.includes("/api/auth/register") ||
+      url.includes("/api/auth/refresh");
+
+    if (status !== 401 || isAuthEndpoint || !originalReq) {
+      return Promise.reject(error);
+    }
+
+    // Only retry a given request once — prevents infinite loops if the
+    // refreshed token is still somehow rejected.
+    if (originalReq._retriedAfterRefresh) {
+      try {
+        window.dispatchEvent(new CustomEvent("sdm:auth-expired"));
+      } catch {
+        /* ignore */
+      }
+      return Promise.reject(error);
+    }
+
+    const newAccess = await _getOrStartRefresh();
+    if (!newAccess) {
+      try {
+        window.dispatchEvent(new CustomEvent("sdm:auth-expired"));
+      } catch {
+        /* ignore */
+      }
+      return Promise.reject(error);
+    }
+
+    // Retry the original request with the new token.
+    originalReq._retriedAfterRefresh = true;
+    originalReq.headers = originalReq.headers || {};
+    originalReq.headers.Authorization = `Bearer ${newAccess}`;
+    return apiClient(originalReq);
+  }
+);
+
 // ============================================================================
 // AUTHENTICATION TYPES
 // ============================================================================
@@ -35,17 +146,34 @@ export interface LoginRequest {
 
 export interface TokenResponse {
   access_token: string;
+  refresh_token?: string;
+  /** Access-token lifetime in seconds (from the backend). */
+  expires_in?: number;
+  /** Refresh-token lifetime in seconds (from the backend). */
+  refresh_expires_in?: number;
+  user?: {
+    id: string;
+    username: string;
+    name?: string;
+    email?: string;
+    role?: string;
+  };
 }
 
 export interface RegisterRequest {
   username: string;
   password: string;
+  name?: string;
+  email?: string;
 }
 
 export interface UserResponse {
   id: string;
   username: string;
-  created_at: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  created_at?: string;
 }
 
 // ============================================================================
@@ -92,6 +220,10 @@ export interface MessageSchema {
   response?: any;
   feedback?: "LIKED" | "DISLIKED" | null;
   response_metadata?: any;
+  // Persisted file attachments (populated on user messages that had a file upload)
+  attachments?: string[];
+  attachment_ids?: Record<string, string>;
+  attachment_meta?: Record<string, { size?: number; type?: string }>;
 }
 
 export interface SessionHistoryResponse {
@@ -230,6 +362,8 @@ export interface DynamicResponseWrapper {
   timestamp?: number | string;
   original_query?: string;
   id: string;
+  /** Populated when the backend stored an uploaded file — maps filename → file_id */
+  fileStored?: { file_id: string; file_name: string };
 }
 
 export type FeedbackValue = "LIKED" | "DISLIKED" | null;
@@ -395,12 +529,14 @@ async function* consumeSSEStream(
 
 export async function registerUser(
   username: string,
-  password: string
+  password: string,
+  name?: string,
+  email?: string
 ): Promise<UserResponse> {
-  const res = await apiClient.post<UserResponse>("/api/auth/register", {
-    username,
-    password,
-  });
+  const payload: RegisterRequest = { username, password };
+  if (name) payload.name = name;
+  if (email) payload.email = email;
+  const res = await apiClient.post<UserResponse>("/api/auth/register", payload);
   return res.data;
 }
 
@@ -408,9 +544,34 @@ export async function loginUser(
   username: string,
   password: string
 ): Promise<TokenResponse> {
-  // Backend returns { token, user } — map to { access_token }
+  // Backend returns { token, refresh_token, user, expires_in, refresh_expires_in }
   const res = await apiClient.post("/api/auth/login", { username, password });
-  return { access_token: res.data.token };
+  return {
+    access_token: res.data.token,
+    refresh_token: res.data.refresh_token,
+    expires_in: res.data.expires_in,
+    refresh_expires_in: res.data.refresh_expires_in,
+    user: res.data.user,
+  };
+}
+
+/**
+ * Exchange a refresh token for a fresh access+refresh token pair.
+ * Throws the raw axios error on failure so callers can react to 401s.
+ */
+export async function refreshAuthToken(
+  refreshToken: string
+): Promise<TokenResponse> {
+  const res = await apiClient.post("/api/auth/refresh", {
+    refresh_token: refreshToken,
+  });
+  return {
+    access_token: res.data.token,
+    refresh_token: res.data.refresh_token,
+    expires_in: res.data.expires_in,
+    refresh_expires_in: res.data.refresh_expires_in,
+    user: res.data.user,
+  };
 }
 
 // ============================================================================
@@ -486,6 +647,10 @@ export async function getSessionHistory(
     query: m.role === "user" ? m.content : undefined,
     queried_at: m.created_at,
     responded_at: m.created_at,
+    // Preserve file attachments so chips + download buttons reappear on reload
+    attachments: m.attachments,
+    attachment_ids: m.attachment_ids,
+    attachment_meta: m.attachment_meta,
     // Use the rich response object from backend if available (includes data, visualizations, clarification);
     // fall back to minimal { message, sql } for older messages that lack it.
     response: m.role === "assistant"
@@ -608,6 +773,7 @@ export async function sendQuery(
   let intent = "CHAT";
   let confidence = 1.0;
   let vizConfig: any = null;
+  let fileStored: { file_id: string; file_name: string } | undefined = undefined;
 
   for await (const event of consumeSSEStream(response, signal)) {
     // Forward event to callback for real-time UI updates (progress steps)
@@ -670,6 +836,10 @@ export async function sendQuery(
         // Extract intent from query plan if available
         break;
 
+      case "file_stored":
+        fileStored = { file_id: event.file_id || "", file_name: event.file_name || "" };
+        break;
+
       case "done":
         messageId = event.message_id || "";
         break;
@@ -724,7 +894,7 @@ export async function sendQuery(
           type: primaryType,
           title: "Data",
           data: dataRows,
-          config: { available_views: availableViews, primary_view: primaryType },
+          config: { available_views: availableViews, primary_view: primaryType, color_mode: vizConfig?.color_mode, bar_color: vizConfig?.bar_color },
         },
       ];
     }
@@ -746,6 +916,7 @@ export async function sendQuery(
     timestamp: Date.now(),
     original_query: query,
     id: messageId,
+    fileStored,
   };
 }
 
@@ -767,6 +938,30 @@ export async function* openProgressStream(
 // ============================================================================
 // MESSAGE ACTIONS API
 // ============================================================================
+
+/**
+ * Download a previously uploaded file by its UUID.
+ * Triggers a browser save-as dialog automatically.
+ */
+export async function downloadFile(
+  token: string,
+  fileId: string,
+  fileName: string
+): Promise<void> {
+  const res = await fetch(`${API_URL}/api/chat/files/${fileId}`, {
+    headers: getAuthHeaders(token),
+  });
+  if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 export async function stopMessage(
   token: string,

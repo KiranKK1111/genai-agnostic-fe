@@ -87,6 +87,8 @@ const LinkButton = styled(Button)({
 export function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -95,6 +97,8 @@ export function LoginPage() {
 
   const resetForm = () => {
     setUsername('');
+    setName('');
+    setEmail('');
     setPassword('');
     setConfirmPassword('');
     setLocalError('');
@@ -114,6 +118,11 @@ export function LoginPage() {
       return;
     }
 
+    if (!isLogin && !name.trim()) {
+      setLocalError('Please enter your full name');
+      return;
+    }
+
     if (!isLogin && password !== confirmPassword) {
       setLocalError('Passwords do not match');
       return;
@@ -130,7 +139,7 @@ export function LoginPage() {
       if (isLogin) {
         success = await login(username, password);
       } else {
-        success = await register(username, password);
+        success = await register(username, password, name.trim(), email.trim() || undefined);
       }
 
       if (!success) {
@@ -165,6 +174,20 @@ export function LoginPage() {
             </Box>
 
             <Box component="form" onSubmit={handleSubmit} sx={{ mt: 3 }}>
+              {!isLogin && (
+                <TextField
+                  fullWidth
+                  label="Full Name"
+                  variant="outlined"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  margin="normal"
+                  autoComplete="name"
+                  disabled={isLoading}
+                  sx={{ mb: 2, '& .MuiInputBase-root': { height: '55px' } }}
+                />
+              )}
+
               <TextField
                 fullWidth
                 label="Username"
@@ -176,6 +199,21 @@ export function LoginPage() {
                 disabled={isLoading}
                 sx={{ mb: 2, '& .MuiInputBase-root': { height: '55px' } }}
               />
+
+              {!isLogin && (
+                <TextField
+                  fullWidth
+                  label="Email (optional)"
+                  type="email"
+                  variant="outlined"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  margin="normal"
+                  autoComplete="email"
+                  disabled={isLoading}
+                  sx={{ mb: 2, '& .MuiInputBase-root': { height: '55px' } }}
+                />
+              )}
 
               <TextField
                 fullWidth
@@ -228,6 +266,26 @@ export function LoginPage() {
                 )}
               </GradientButton>
 
+              <Box sx={{ textAlign: 'center', mt: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {isLogin ? "Don't have an account?" : 'Already have an account?'}{' '}
+                  <Button
+                    type="button"
+                    onClick={handleToggleMode}
+                    disabled={isLoading}
+                    sx={{
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      color: '#3b82f6',
+                      minWidth: 0,
+                      p: 0,
+                      '&:hover': { backgroundColor: 'transparent', color: '#2563eb' },
+                    }}
+                  >
+                    {isLogin ? 'Create one' : 'Sign in'}
+                  </Button>
+                </Typography>
+              </Box>
             </Box>
           </CardContent>
         </StyledCard>

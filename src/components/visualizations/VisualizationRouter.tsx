@@ -24,12 +24,23 @@ export interface VisualizationRouterProps {
   barChartConfig?: BarChartConfig | null;
 }
 
+// Wrapper that renders a true pie (no hole)
+function PieChartFilled(props: any) {
+  return <PieChartVisualization {...props} variant="pie" />;
+}
+
+// Wrapper that renders a donut (with hole)
+function DonutChartVisualization(props: any) {
+  return <PieChartVisualization {...props} variant="donut" />;
+}
+
 // Visualization type to component mapping
 const visualizationMap: Record<string, React.ComponentType<any>> = {
   table: TableDataVisualization,
   bar: BarChartVisualization,
   line: LineChartVisualization,
-  pie: PieChartVisualization,
+  pie: PieChartFilled,
+  donut: DonutChartVisualization,
   scatter: ScatterPlotVisualization,
 };
 
@@ -112,6 +123,12 @@ export function VisualizationRouter({
       componentProps.aggregationField = barChartConfig.field;
       componentProps.aggregationType = barChartConfig.aggregationType;
       componentProps.aggregationValueField = barChartConfig.valueField;
+    }
+
+    // Pass color mode and specific bar color for bar charts
+    if (normalizedType === 'bar') {
+      componentProps.colorMode = visualization.config?.color_mode;
+      componentProps.barColor = visualization.config?.bar_color;
     }
 
     return (

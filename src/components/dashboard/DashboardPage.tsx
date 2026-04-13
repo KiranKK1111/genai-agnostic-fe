@@ -69,6 +69,7 @@ export const DashboardPage: React.FC = () => {
           value={activeDomain}
           onChange={(_, v) => setActiveDomain(v)}
           variant={isMobile ? 'scrollable' : 'standard'}
+          centered={!isMobile}
           scrollButtons={isMobile ? 'auto' : false}
           sx={{
             minHeight: 40,
@@ -103,8 +104,9 @@ export const DashboardPage: React.FC = () => {
             key={activeDomain}
             value={activeReport}
             onChange={(_, v) => setActiveReport(v)}
-            variant="scrollable"
-            scrollButtons="auto"
+            variant={isMobile ? 'scrollable' : 'standard'}
+            centered={!isMobile}
+            scrollButtons={isMobile ? 'auto' : false}
             sx={{
               minHeight: 34,
               '& .MuiTabs-indicator': { height: 2.5, bgcolor: isDark ? '#60a5fa' : '#1565c0', borderRadius: 0, transition: 'none' },

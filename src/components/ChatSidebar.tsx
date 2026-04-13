@@ -136,7 +136,9 @@ export function ChatSidebar({
   isMobileOpen = false,
   onMobileClose,
 }: ChatSidebarProps) {
-  const { logout, username } = useAuth();
+  const { logout, username, name } = useAuth();
+  // Prefer the friendly display name; fall back to username for legacy accounts.
+  const displayName = name || username;
   const { theme, toggleTheme } = useTheme();
   const muiTheme = useMuiTheme();
   const isMobile = useMediaQuery(muiTheme.breakpoints.down('md'));
@@ -431,11 +433,11 @@ export function ChatSidebar({
           >
             <GradientAvatar sx={{ width: 32, height: 32 }}>
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                {username.charAt(0).toUpperCase()}
+                {(displayName || 'U').charAt(0).toUpperCase()}
               </Typography>
             </GradientAvatar>
             <Typography variant="body2" sx={{ fontWeight: 500, flex: 1 }} noWrap>
-              {username}
+              {displayName}
             </Typography>
           </Box>
 
@@ -494,7 +496,7 @@ export function ChatSidebar({
           </IconButton>
           <GradientAvatar sx={{ width: 24, height: 24 }}>
             <Typography variant="caption" sx={{ fontSize: '10px', fontWeight: 600 }}>
-              {username.charAt(0).toUpperCase()}
+              {(displayName || 'U').charAt(0).toUpperCase()}
             </Typography>
           </GradientAvatar>
           <IconButton onClick={logout} color="primary">

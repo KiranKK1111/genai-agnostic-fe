@@ -11,6 +11,10 @@ export interface Message {
   timestamp: Date | string;
   response?: any;
   attachments?: string[];
+  /** Maps filename → backend file_id UUID so chips can trigger downloads */
+  attachmentIds?: Record<string, string>;
+  /** Maps filename → { size: bytes, type: mime/ext } for display in chips */
+  attachmentMeta?: Record<string, { size?: number; type?: string }>;
   clarifyingQuestion?: string | null;
   originalQuery?: string;
   backendMessageId?: string;

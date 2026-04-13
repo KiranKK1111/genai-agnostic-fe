@@ -26,6 +26,12 @@ export function LineChartVisualization({
   yAxes,
 }: LineChartVisualizationProps) {
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const tooltipStyle = {
+    backgroundColor: isDark ? '#ffffff' : '#1a1a1a',
+    borderColor:     isDark ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)',
+    textStyle:       { color: isDark ? '#1a1a1a' : '#ffffff' },
+  };
   const height = 400;
 
   const option = useMemo(() => {
@@ -44,7 +50,7 @@ export function LineChartVisualization({
       }));
 
       return {
-        tooltip: { trigger: 'axis', backgroundColor: 'rgba(0, 0, 0, 0.7)' },
+        tooltip: { trigger: 'axis', ...tooltipStyle },
         legend: { data: yAxes, bottom: 0, textStyle: { color: theme.palette.text.secondary } },
         xAxis: { type: 'category', data: categories, axisLabel: { rotate: categories.length > 5 ? 45 : 0 } },
         yAxis: { type: 'value' },
@@ -64,8 +70,7 @@ export function LineChartVisualization({
     return {
       tooltip: {
         trigger: 'axis',
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        borderColor: 'rgba(59, 130, 246, 0.5)',
+        ...tooltipStyle,
       },
       xAxis: {
         type: 'category',

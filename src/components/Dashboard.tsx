@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
-import { Box, Alert, Snackbar, Typography, CircularProgress, IconButton, useTheme, useMediaQuery, ToggleButtonGroup, ToggleButton } from '@mui/material';
+import { Box, Alert, Snackbar, Typography, CircularProgress, IconButton, useTheme, useMediaQuery, ToggleButtonGroup, ToggleButton, LinearProgress, Paper } from '@mui/material';
 import { ChatSidebar } from './ChatSidebar';
 import { ChatInterface } from './ChatInterface';
 import { ChatHeader } from './ChatHeader'; // used for dashboard-mode header only
-import { Sparkles, Menu, MessageSquare, LayoutDashboard } from 'lucide-react';
+import { Sparkles, Menu, MessageSquare, LayoutDashboard, X } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState, AppDispatch } from '../store';
 import {
@@ -18,6 +18,7 @@ import {
 } from '../features/chatSlice';
 import { useSessionManagement } from '../hooks/useSessionManagement';
 import { useMessageHandler } from '../hooks/useMessageHandler';
+import { exportChatToPdf } from '../utils/exportChatToPdf';
 
 const DashboardPage = lazy(() => import('./dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
 
@@ -36,6 +37,11 @@ export function Dashboard() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+
+  const [exportToastOpen, setExportToastOpen] = useState(false);
+  const [exportProgress, setExportProgress] = useState({ ratio: 0, label: '' });
+  const [isExporting, setIsExporting] = useState(false);
+  const exportAbortRef = useRef<AbortController | null>(null);
 
   const dragCounterRef = useRef(0);
 
@@ -98,6 +104,60 @@ export function Dashboard() {
   );
   const pendingClarification = currentChat?.pendingClarification || null;
 
+  // Export current conversation as a PDF with rendered visualizations
+  const handleExportChat = useCallback(async () => {
+    if (!currentChat?.messages || currentChat.messages.length === 0) return;
+    const messagesRoot = document.querySelector<HTMLElement>('[data-messages-root]');
+
+    const controller = new AbortController();
+    exportAbortRef.current = controller;
+
+    try {
+      setIsExporting(true);
+      setExportToastOpen(true);
+      setExportProgress({ ratio: 0, label: 'Preparing export…' });
+
+      await exportChatToPdf({
+        title: currentChat.title || 'Untitled chat',
+        messages: currentChat.messages as any,
+        messagesRoot,
+        signal: controller.signal,
+        onProgress: (p) => {
+          setExportProgress({
+            ratio: p.ratio,
+            label: p.label,
+          });
+        },
+      });
+
+      setExportProgress({ ratio: 1, label: 'Export complete' });
+
+      setTimeout(() => {
+        setExportToastOpen(false);
+        setIsExporting(false);
+      }, 1200);
+    } catch (err) {
+      if ((err as DOMException)?.name === 'AbortError') {
+        // User cancelled — close the toast silently.
+        setExportToastOpen(false);
+        setIsExporting(false);
+        return;
+      }
+      // eslint-disable-next-line no-console
+      console.error('Failed to export chat to PDF', err);
+      setExportToastOpen(false);
+      setIsExporting(false);
+      const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+      dispatch(setError(`Failed to export chat to PDF — ${detail}`));
+    } finally {
+      exportAbortRef.current = null;
+    }
+  }, [currentChat, dispatch]);
+
+  const handleCancelExport = useCallback(() => {
+    exportAbortRef.current?.abort();
+  }, []);
+
   const handleSendMessageWithChat = async (content: string, files?: File[]) => {
     // Auto-switch to chat when user sends a message
     setViewMode('chat');
@@ -124,6 +184,19 @@ export function Dashboard() {
   };
 
   const handleNewChat = async (): Promise<{ chatId: string; sessionId: string } | null> => {
+    // Avoid spawning duplicate empty sessions: if the user already has a chat
+    // with no messages, just switch to it instead of creating another.
+    const existingEmpty = chats.find((c) => !c.messages || c.messages.length === 0);
+    if (existingEmpty) {
+      dispatch(clearError());
+      dispatch(selectChat(existingEmpty.id));
+      setViewMode('chat');
+      return {
+        chatId: existingEmpty.id,
+        sessionId: existingEmpty.sessionId || '',
+      };
+    }
+
     const newChatId = Date.now().toString();
     try {
       dispatch(clearError());
@@ -219,7 +292,8 @@ export function Dashboard() {
       )}
 
       <Snackbar
-        open={!!error} autoHideDuration={5000}
+        open={!!error}
+        autoHideDuration={5000}
         onClose={() => dispatch(clearError())}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
         sx={{ zIndex: 1400 }}
@@ -227,6 +301,55 @@ export function Dashboard() {
         <Alert severity="error" variant="filled" onClose={() => dispatch(clearError())} sx={{ width: '100%', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
           {error}
         </Alert>
+      </Snackbar>
+
+      <Snackbar
+        open={exportToastOpen}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ zIndex: 1400 }}
+      >
+        <Paper
+          elevation={6}
+          sx={{
+            minWidth: 320,
+            maxWidth: 420,
+            width: '100%',
+            px: 2,
+            py: 1.5,
+            borderRadius: 2,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+              Exporting PDF
+            </Typography>
+            {isExporting && (
+              <IconButton
+                size="small"
+                onClick={handleCancelExport}
+                aria-label="Cancel export"
+                sx={{ ml: 1, p: 0.25 }}
+              >
+                <X size={16} />
+              </IconButton>
+            )}
+          </Box>
+
+          <Typography variant="body2" sx={{ mb: 1, color: 'text.secondary' }}>
+            {exportProgress.label}
+          </Typography>
+
+          <LinearProgress
+            variant="determinate"
+            value={Math.round(exportProgress.ratio * 100)}
+            sx={{ height: 8, borderRadius: 999 }}
+          />
+
+          <Typography variant="caption" sx={{ display: 'block', mt: 0.75, textAlign: 'right' }}>
+            {Math.round(exportProgress.ratio * 100)}%
+          </Typography>
+        </Paper>
       </Snackbar>
 
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative', minWidth: 0 }}>
@@ -276,17 +399,26 @@ export function Dashboard() {
                   <Sparkles size={16} color="white" />
                 </Box>
                 <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                  <Typography noWrap sx={{
-                    fontWeight: 700, fontSize: '0.95rem', letterSpacing: '-0.01em', lineHeight: 1.2,
-                    background: muiTheme.palette.mode === 'dark' ? 'linear-gradient(135deg, #bbdefb, #64b5f6)' : 'linear-gradient(135deg, #0d47a1, #1565c0)',
-                    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-                  }}>
+                  <Typography
+                    noWrap
+                    sx={{
+                      fontWeight: 700,
+                      fontSize: '0.95rem',
+                      letterSpacing: '-0.01em',
+                      lineHeight: 1.2,
+                      background: muiTheme.palette.mode === 'dark' ? 'linear-gradient(135deg, #bbdefb, #64b5f6)' : 'linear-gradient(135deg, #0d47a1, #1565c0)',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text',
+                    }}
+                  >
                     SDM AI Assistant
                   </Typography>
                 </Box>
               </Box>
               <ToggleButtonGroup
-                value={viewMode} exclusive
+                value={viewMode}
+                exclusive
                 onChange={(_, v) => v && setViewMode(v)}
                 size="small"
                 sx={{
@@ -305,7 +437,12 @@ export function Dashboard() {
 
           {/* Desktop header — always visible, single instance to prevent layout shift */}
           {!isMobile && (
-            <ChatHeader viewMode={viewMode} onViewModeChange={setViewMode} />
+            <ChatHeader
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              canExport={viewMode === 'chat' && !!currentChat?.messages?.length && !isExporting}
+              onExport={handleExportChat}
+            />
           )}
 
           {/* Content: Dashboard or Chat */}

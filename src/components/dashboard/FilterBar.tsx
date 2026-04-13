@@ -172,12 +172,26 @@ function renderDropdown(
       MenuProps={{
         PaperProps: {
           sx: {
-            maxHeight: 280, mt: 0.5,
+            mt: 0.5,
             bgcolor: isDark ? '#1e1e1e' : '#fff',
             border: `1px solid ${isDark ? '#444' : '#dee2e6'}`,
             boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-            '&::-webkit-scrollbar': { width: 6 },
-            '&::-webkit-scrollbar-thumb': { bgcolor: isDark ? '#444' : '#adb5bd', borderRadius: 3 },
+            borderRadius: '6px',
+            overflow: 'hidden', // clip the scrollbar at the rounded corners
+            '& .MuiList-root': {
+              maxHeight: 280,
+              overflowY: 'auto',
+              py: 0,
+              // Scrollbar lives on the inner list so it stays inside the clipped Paper
+              scrollbarWidth: 'thin',
+              scrollbarColor: `${isDark ? '#444' : '#adb5bd'} transparent`,
+              '&::-webkit-scrollbar': { width: 6 },
+              '&::-webkit-scrollbar-track': { background: 'transparent' },
+              '&::-webkit-scrollbar-thumb': {
+                bgcolor: isDark ? '#444' : '#adb5bd',
+                borderRadius: 3,
+              },
+            },
           },
         },
       }}

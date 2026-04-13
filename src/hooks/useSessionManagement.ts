@@ -57,12 +57,19 @@ export function useSessionManagement() {
       if (msg.role === 'user') {
         const content = msg.content || msg.query || '';
         if (!content) continue;
+        // Reconstruct file attachments from persisted metadata so chips + download buttons reappear
+        const rawAttachments = (msg as any).attachments;
+        const rawAttachmentIds = (msg as any).attachment_ids || (msg as any).attachmentIds;
+        const rawAttachmentMeta = (msg as any).attachment_meta || (msg as any).attachmentMeta;
         messages.push({
           id: msg.id || `${sessionId}-user-${i}`,
           role: 'user',
           content,
           timestamp: msg.created_at || msg.queried_at || '',
           backendMessageId: msg.id || undefined,
+          attachments: Array.isArray(rawAttachments) ? rawAttachments : undefined,
+          attachmentIds: rawAttachmentIds && typeof rawAttachmentIds === 'object' ? rawAttachmentIds : undefined,
+          attachmentMeta: rawAttachmentMeta && typeof rawAttachmentMeta === 'object' ? rawAttachmentMeta : undefined,
         });
       } else if (msg.role === 'assistant') {
         let messageContent = msg.content || '';

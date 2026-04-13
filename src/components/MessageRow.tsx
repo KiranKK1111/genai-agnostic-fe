@@ -24,10 +24,10 @@ import {
   AssistantContentBubble,
   GradientAvatar,
 } from './ChatInterface.styles';
-import { Sparkles, BarChart3, LineChart, PieChart, Table2, RefreshCw, ThumbsUp, ThumbsDown, Send, Pencil } from 'lucide-react';
+import { Sparkles, ChartColumn, ChartLine, ChartPie, ChartScatter, Table2, CircleDot, RefreshCw, ThumbsUp, ThumbsDown, Send, Pencil, Download, Plus, X } from 'lucide-react';
 import type { Message } from './ChatInterface.types';
 import type { IntelligentModalResponse, ClarifyingQuestion, FeedbackValue } from '../api';
-import { submitMessageFeedback } from '../api';
+import { submitMessageFeedback, downloadFile } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { BarChartConfig, type BarChartConfig as BarChartConfigType } from './visualizations/BarChartConfig';
 import { useTypewriter } from '../hooks/useTypeWriter';
@@ -48,7 +48,7 @@ interface MessageRowProps {
   isRefining?: boolean;
   followUpSuggestions?: string[];
   previousUserMessage?: string;
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, files?: File[]) => void;
   onRefineResponse?: (feedback: string) => void;
   onClarifyingQuestionConfirm?: (confirmation: string, clarificationType?: string) => void;
 }
@@ -84,11 +84,17 @@ function MessageRowComponent({
   // --- Inline prompt editing ---
   const [isEditing, setIsEditing] = React.useState(false);
   const [editText, setEditText] = React.useState(message.content);
+  const [editNewFiles, setEditNewFiles] = React.useState<File[]>([]);
+  const [editRemovedAttachments, setEditRemovedAttachments] = React.useState<Set<string>>(new Set());
   const editTextareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const editFileInputRef = React.useRef<HTMLInputElement>(null);
+  const filePickerOpenRef = React.useRef(false);
 
   const startEditing = () => {
     if (isLoading) return; // don't edit while a response is in flight
     setEditText(message.content);
+    setEditNewFiles([]);
+    setEditRemovedAttachments(new Set());
     setIsEditing(true);
 
     // focus textarea after React renders it
@@ -104,13 +110,37 @@ function MessageRowComponent({
   const cancelEditing = () => {
     setIsEditing(false);
     setEditText(message.content);
+    setEditNewFiles([]);
+    setEditRemovedAttachments(new Set());
   };
 
   const submitEdit = () => {
     const trimmed = editText.trim();
     if (!trimmed || isLoading) return;
     setIsEditing(false);
-    onSendMessage(trimmed);
+    onSendMessage(trimmed, editNewFiles.length > 0 ? editNewFiles : undefined);
+    setEditNewFiles([]);
+    setEditRemovedAttachments(new Set());
+  };
+
+  const handleAddEditFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    setEditNewFiles((prev) => [...prev, ...Array.from(files)]);
+    // reset so the same file can be picked again after removal
+    if (editFileInputRef.current) editFileInputRef.current.value = '';
+  };
+
+  const removeExistingAttachment = (fileName: string) => {
+    setEditRemovedAttachments((prev) => {
+      const next = new Set(prev);
+      next.add(fileName);
+      return next;
+    });
+  };
+
+  const removeNewEditFile = (idx: number) => {
+    setEditNewFiles((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const handleEditKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -183,11 +213,26 @@ function MessageRowComponent({
     }
   }, [message.response?.visualizations]);
 
+  // Listen for external viz-type switching (used during PDF export to capture
+  // each visualization variant of this message)
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.messageId === message.id && typeof detail?.vizType === 'string') {
+        setSelectedVizType(detail.vizType);
+      }
+    };
+    window.addEventListener('viz:force-type', handler);
+    return () => window.removeEventListener('viz:force-type', handler);
+  }, [message.id]);
+
   const vizIcons: Record<string, any> = {
-    bar: BarChart3,
-    line: LineChart,
-    pie: PieChart,
     table: Table2,
+    bar: ChartColumn,
+    line: ChartLine,
+    pie: ChartPie,
+    donut: CircleDot,
+    scatter: ChartScatter,
   };
 
   const availableVizTypes = React.useMemo(() => {
@@ -202,7 +247,10 @@ function MessageRowComponent({
   }, [message.response?.visualizations]);
 
   return (
-    <MessageRowStyled>
+    <MessageRowStyled
+      data-message-id={message.id}
+      data-viz-types={Array.isArray(message.response?.visualizations) && availableVizTypes.length > 0 ? availableVizTypes.join(',') : undefined}
+    >
       {message.role === 'user' ? (
         <UserMessageGroup>
           {isEditing ? (
@@ -218,6 +266,8 @@ function MessageRowComponent({
                 alignSelf: 'flex-end',
               }}
               onBlur={(e) => {
+                // Don't cancel if the file picker dialog is currently open
+                if (filePickerOpenRef.current) return;
                 if (!e.currentTarget.contains(e.relatedTarget as Node)) {
                   cancelEditing();
                 }
@@ -256,39 +306,179 @@ function MessageRowComponent({
                   }}
                 />
 
-                {/* Show attached files inside the edit box */}
-                {message.attachments && message.attachments.length > 0 && (
+                {/* File management row — existing kept + new added, with "+" button */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    gap: 0.75,
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    mt: 1,
+                    pt: 1,
+                    borderTop: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
+                  }}
+                >
+                  {/* "+" add-files button */}
                   <Box
+                    component="button"
+                    type="button"
+                    onMouseDown={(e: React.MouseEvent) => e.preventDefault()}
+                    onClick={() => {
+                      filePickerOpenRef.current = true;
+                      editFileInputRef.current?.click();
+                      // Clear the flag shortly after — picker is modal, blur
+                      // fires during click but dialog closes before re-focus
+                      setTimeout(() => { filePickerOpenRef.current = false; }, 400);
+                    }}
                     sx={{
-                      display: 'flex',
-                      gap: 0.75,
-                      flexWrap: 'wrap',
-                      mt: 1,
-                      pt: 1,
-                      borderTop: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 0.5,
+                      height: 30,
+                      px: 1.2,
+                      borderRadius: '15px',
+                      border: `1.5px dashed ${isDark ? 'rgba(21, 101, 192, 0.6)' : 'rgba(13, 71, 161, 0.5)'}`,
+                      background: 'transparent',
+                      color: isDark ? '#60a5fa' : '#0d47a1',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      '&:hover': {
+                        background: isDark ? 'rgba(21, 101, 192, 0.15)' : 'rgba(13, 71, 161, 0.08)',
+                        borderStyle: 'solid',
+                      },
                     }}
                   >
-                    {message.attachments.map((fileName: string, idx: number) => (
-                      <Chip
-                        key={idx}
-                        icon={<Paperclip size={12} />}
-                        label={fileName}
-                        size="small"
+                    <Plus size={13} />
+                    Add file
+                  </Box>
+                  <input
+                    ref={editFileInputRef}
+                    type="file"
+                    multiple
+                    onChange={handleAddEditFiles}
+                    style={{ display: 'none' }}
+                  />
+
+                  {/* Existing attachments (filtered: hide removed) */}
+                  {message.attachments &&
+                    message.attachments
+                      .filter((fn: string) => !editRemovedAttachments.has(fn))
+                      .map((fileName: string, idx: number) => (
+                        <Box
+                          key={`existing-${idx}`}
+                          sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            height: 30,
+                            pl: 1,
+                            pr: 0.6,
+                            borderRadius: '15px',
+                            background: isDark ? 'rgba(21, 101, 192, 0.18)' : 'rgba(13, 71, 161, 0.1)',
+                            gap: 0.5,
+                          }}
+                        >
+                          <Paperclip size={11} color={isDark ? '#60a5fa' : '#0d47a1'} />
+                          <Typography
+                            sx={{
+                              fontSize: '11px',
+                              fontWeight: 500,
+                              color: isDark ? '#e0e0e0' : '#0d47a1',
+                              maxWidth: 120,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {fileName}
+                          </Typography>
+                          <Box
+                            component="button"
+                            type="button"
+                            onMouseDown={(e: React.MouseEvent) => e.preventDefault()}
+                            onClick={() => removeExistingAttachment(fileName)}
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: 20,
+                              height: 20,
+                              border: 'none',
+                              borderRadius: '50%',
+                              background: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.12)',
+                              color: isDark ? '#fff' : '#333',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                              '&:hover': {
+                                background: isDark ? '#ef4444' : '#dc2626',
+                                color: '#fff',
+                              },
+                            }}
+                          >
+                            <X size={14} strokeWidth={2.5} />
+                          </Box>
+                        </Box>
+                      ))}
+
+                  {/* Newly added files */}
+                  {editNewFiles.map((f, idx) => (
+                    <Box
+                      key={`new-${idx}`}
+                      sx={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        height: 26,
+                        pl: 1,
+                        pr: 0.5,
+                        borderRadius: '13px',
+                        background: isDark ? 'rgba(46, 125, 50, 0.22)' : 'rgba(46, 125, 50, 0.1)',
+                        gap: 0.5,
+                      }}
+                    >
+                      <Paperclip size={11} color={isDark ? '#66bb6a' : '#2e7d32'} />
+                      <Typography
                         sx={{
                           fontSize: '11px',
-                          height: '24px',
-                          backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)',
-                          color: '#3b82f6',
+                          fontWeight: 500,
+                          color: isDark ? '#e0e0e0' : '#1b5e20',
+                          maxWidth: 120,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {f.name}
+                      </Typography>
+                      <Box
+                        component="button"
+                        type="button"
+                        onMouseDown={(e: React.MouseEvent) => e.preventDefault()}
+                        onClick={() => removeNewEditFile(idx)}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: 20,
+                          height: 20,
                           border: 'none',
-                          '& .MuiChip-icon': {
-                            marginLeft: '4px !important',
-                            color: '#3b82f6',
+                          borderRadius: '50%',
+                          background: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.12)',
+                          color: isDark ? '#fff' : '#333',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          '&:hover': {
+                            background: isDark ? '#ef4444' : '#dc2626',
+                            color: '#fff',
                           },
                         }}
-                      />
-                    ))}
-                  </Box>
-                )}
+                      >
+                        <X size={14} strokeWidth={2.5} />
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
               </Box>
 
               {/* Action row */}
@@ -378,7 +568,7 @@ function MessageRowComponent({
                 />
               </UserMessageBubble>
 
-              {/* Attachment chips */}
+              {/* Attachment cards */}
               {!isEditing && message.attachments && message.attachments.length > 0 && (
                 <Box
                   sx={{
@@ -386,39 +576,107 @@ function MessageRowComponent({
                     gap: 1,
                     flexWrap: 'wrap',
                     justifyContent: 'flex-end',
-                    paddingRight: '8px',
+                    mt: 1,
                   }}
                 >
-                  {message.attachments.map((fileName: string, idx: number) => (
-                    <Chip
-                      key={idx}
-                      icon={<Paperclip size={14} />}
-                      label={fileName}
-                      size="small"
-                      variant="outlined"
-                      sx={{
-                        fontSize: '12px',
-                        fontWeight: 500,
-                        borderRadius: '20px',
-                        border: `1.5px solid ${theme.palette.mode === 'dark' ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.3)'}`,
-                        color: '#3b82f6',
-                        transition: 'all 0.2s ease',
-                        '&:hover': {
-                          backgroundColor: theme.palette.mode === 'dark'
-                            ? 'rgba(59, 130, 246, 0.15)'
-                            : 'rgba(59, 130, 246, 0.12)',
-                          borderColor: '#3b82f6',
-                          boxShadow: theme.palette.mode === 'dark'
-                            ? '0 4px 12px rgba(59, 130, 246, 0.2)'
-                            : '0 2px 8px rgba(59, 130, 246, 0.15)',
-                        },
-                        '& .MuiChip-icon': {
-                          marginLeft: '4px !important',
-                          color: '#3b82f6',
-                        },
-                      }}
-                    />
-                  ))}
+                  {message.attachments.map((fileName: string, idx: number) => {
+                    const fileId = message.attachmentIds?.[fileName];
+                    const canDownload = !!fileId;
+                    const meta = message.attachmentMeta?.[fileName];
+                    // Format file size (B / KB / MB)
+                    const fmtSize = (bytes?: number) => {
+                      if (!bytes && bytes !== 0) return '';
+                      if (bytes < 1024) return `${bytes} B`;
+                      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+                      return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+                    };
+                    // Get extension from filename or mime type
+                    const ext = (fileName.split('.').pop() || meta?.type?.split('/').pop() || 'FILE').toUpperCase();
+                    const sizeStr = fmtSize(meta?.size);
+                    const isDark = theme.palette.mode === 'dark';
+
+                    return (
+                      <Box
+                        key={idx}
+                        onClick={canDownload && token ? () => {
+                          downloadFile(token, fileId!, fileName).catch(() => {});
+                        } : undefined}
+                        sx={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 1,
+                          px: 1.2,
+                          py: 0.7,
+                          maxWidth: 240,
+                          borderRadius: '10px',
+                          border: `1px solid ${isDark ? 'rgba(21, 101, 192, 0.4)' : 'rgba(13, 71, 161, 0.25)'}`,
+                          background: isDark
+                            ? 'linear-gradient(135deg, rgba(13, 71, 161, 0.15), rgba(21, 101, 192, 0.08))'
+                            : 'linear-gradient(135deg, rgba(13, 71, 161, 0.06), rgba(21, 101, 192, 0.03))',
+                          cursor: canDownload ? 'pointer' : 'default',
+                          transition: 'all 0.2s ease',
+                          '&:hover': canDownload ? {
+                            transform: 'translateY(-1px)',
+                            borderColor: '#1565c0',
+                            boxShadow: isDark
+                              ? '0 4px 12px rgba(13, 71, 161, 0.3)'
+                              : '0 4px 12px rgba(13, 71, 161, 0.15)',
+                            background: isDark
+                              ? 'linear-gradient(135deg, rgba(13, 71, 161, 0.25), rgba(21, 101, 192, 0.15))'
+                              : 'linear-gradient(135deg, rgba(13, 71, 161, 0.1), rgba(21, 101, 192, 0.06))',
+                          } : {},
+                        }}
+                      >
+                        {/* File-type icon block */}
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 30,
+                            height: 30,
+                            borderRadius: '6px',
+                            background: 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)',
+                            color: '#fff',
+                            fontSize: '9px',
+                            fontWeight: 700,
+                            letterSpacing: 0.3,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {ext.length <= 4 ? ext : <Paperclip size={14} />}
+                        </Box>
+                        {/* Filename + size */}
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Typography
+                            sx={{
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              color: isDark ? '#e0e0e0' : '#212529',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              lineHeight: 1.3,
+                            }}
+                          >
+                            {fileName}
+                          </Typography>
+                          {sizeStr && (
+                            <Typography
+                              sx={{
+                                fontSize: '10px',
+                                fontWeight: 500,
+                                color: isDark ? '#999' : '#6c757d',
+                                lineHeight: 1.3,
+                              }}
+                            >
+                              {sizeStr}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    );
+                  })}
                 </Box>
               )}
             </Box>
@@ -445,7 +703,17 @@ function MessageRowComponent({
 
             {/* Visualization Type Icons — only show when multiple viz types are available */}
             {message.response?.visualizations && availableVizTypes.length > 1 && (
-              <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  gap: 0.5,
+                  alignItems: 'center',
+                  p: 0.4,
+                  borderRadius: '8px',
+                  background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`,
+                }}
+              >
                 {availableVizTypes.map((type: string) => {
                   const IconComponent = vizIcons[type] || Table2;
                   const isActive = selectedVizType === type;
@@ -457,24 +725,27 @@ function MessageRowComponent({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        width: 32,
-                        height: 32,
+                        width: 30,
+                        height: 30,
                         borderRadius: '6px',
                         cursor: 'pointer',
-                        transition: 'all 0.2s ease',
-                        backgroundColor: isActive
-                          ? '#3b82f6'
-                          : isDark
-                            ? 'rgba(255, 255, 255, 0.1)'
-                            : 'rgba(0, 0, 0, 0.05)',
+                        transition: 'all 0.15s ease',
+                        background: isActive
+                          ? 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)'
+                          : 'transparent',
                         color: isActive
                           ? '#ffffff'
                           : isDark
-                            ? 'rgba(255, 255, 255, 0.7)'
-                            : 'rgba(0, 0, 0, 0.6)',
+                            ? '#999'
+                            : '#6c757d',
+                        boxShadow: isActive ? '0 2px 6px rgba(13, 71, 161, 0.35)' : 'none',
                         '&:hover': {
-                          backgroundColor: isActive ? '#3b82f6' : isDark ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)',
-                          color: '#3b82f6',
+                          background: isActive
+                            ? 'linear-gradient(135deg, #0a3d8f 0%, #1256a0 100%)'
+                            : isDark
+                              ? 'rgba(21, 101, 192, 0.15)'
+                              : 'rgba(13, 71, 161, 0.08)',
+                          color: isActive ? '#ffffff' : isDark ? '#60a5fa' : '#0d47a1',
                         },
                       }}
                       title={type}
@@ -576,7 +847,11 @@ function MessageRowComponent({
               message.response?.visualizations &&
               Array.isArray(message.response.visualizations) &&
               message.response.visualizations.length > 0 && (
-                <Box sx={{ mt: 2 }}>
+                <Box
+                  sx={{ mt: 2 }}
+                  data-viz-capture
+                  data-viz-label={`${(selectedVizType || message.response.visualizations[0].type).toString().toUpperCase()} view`}
+                >
                   <VisualizationRouter
                     visualization={{
                       ...message.response.visualizations[0],
@@ -685,8 +960,10 @@ function MessageRowComponent({
               </Box>
             )}
 
-            {/* Divider */}
-            <Box sx={{ width: '1px', height: 14, backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)', mx: 0.25 }} />
+            {/* Divider — only when retry button is visible */}
+            {isLastAssistantMessage && (
+              <Box sx={{ width: '1px', height: 14, backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)', mx: 0.25 }} />
+            )}
 
             {/* Thumbs up */}
             <Box

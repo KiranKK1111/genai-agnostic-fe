@@ -20,6 +20,10 @@ export interface ChatMessage {
   isRefinement?: boolean;
   // Attachments (file names) included with user messages
   attachments?: string[];
+  // Maps filename → backend file_id UUID so chips can trigger downloads
+  attachmentIds?: Record<string, string>;
+  // Maps filename → { size: bytes, type: mime/ext } for display in chips
+  attachmentMeta?: Record<string, { size?: number; type?: string }>;
   // Clarifying question from the backend if message/data is ambiguous
   clarifyingQuestion?: string | null;
   // Original query for clarifying question confirmation
@@ -283,6 +287,8 @@ const chatSlice = createSlice({
     clearChats(state) {
       state.chats = [];
       state.currentChatId = null;
+      state.loadingChatId = null;
+      state.error = null;
     },
 
     /**
@@ -425,6 +431,28 @@ const chatSlice = createSlice({
     },
 
     /**
+     * Attach backend file_id UUIDs to a user message so its chips can download.
+     * Merges into any existing attachmentIds (supports multi-file sessions).
+     */
+    updateMessageAttachmentIds(
+      state,
+      action: PayloadAction<{
+        chatId: string;
+        messageId: string;
+        attachmentIds: Record<string, string>;
+      }>
+    ) {
+      const { chatId, messageId, attachmentIds } = action.payload;
+      const chat = state.chats.find((c) => c.id === chatId);
+      if (chat) {
+        const message = chat.messages.find((m) => m.id === messageId);
+        if (message) {
+          message.attachmentIds = { ...message.attachmentIds, ...attachmentIds };
+        }
+      }
+    },
+
+    /**
      * Update session metadata (QueryState, tool_calls_log, ambiguity_events)
      * for a chat. Called when backend returns updated session state.
      */
@@ -487,6 +515,7 @@ export const {
   updateSessionMetadata,
   updateMessageSessionMetadata,
   updateMessageFeedback,
+  updateMessageAttachmentIds,
 } = chatSlice.actions;
 
 export default chatSlice.reducer;

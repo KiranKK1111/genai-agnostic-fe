@@ -50,6 +50,9 @@ export function AxisSelector({ columns, data, selection, onChange }: AxisSelecto
   const allCols = columns.length > 0 ? columns : getAllColumns(data);
   const numericCols = getNumericColumns(data);
 
+  // With exactly 2 columns the mapping is unambiguous — hide the selector entirely.
+  if (allCols.length === 2) return null;
+
   const selectSx = {
     fontSize: '13px',
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.5)',

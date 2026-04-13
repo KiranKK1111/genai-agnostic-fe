@@ -1,20 +1,16 @@
 /**
  * ChartWidget — MicroStrategy-style chart with colored header strip.
  *
- * Header colors rotate: blue → green → amber/red for visual distinction.
- * Shows "Month" label on the right of the header.
+ * Header colors rotate: blue → green → amber → purple for visual distinction.
+ * Uses ECharts (echarts-for-react) as the rendering engine.
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Box, Typography, useTheme } from '@mui/material';
-import {
-  BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LabelList,
-} from 'recharts';
+import ReactECharts from 'echarts-for-react';
 
 const PALETTE = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#dc2626', '#4f46e5', '#059669'];
 const DARK_PALETTE = ['#60a5fa', '#4ade80', '#fbbf24', '#a78bfa', '#22d3ee', '#f87171', '#818cf8', '#34d399'];
 
-/* Each index gets a different colored header — matches MicroStrategy */
 const HEADERS_LIGHT = [
   { bg: 'linear-gradient(90deg, #1565c0, #1976d2)', text: '#e3f2fd' },
   { bg: 'linear-gradient(90deg, #2e7d32, #388e3c)', text: '#e8f5e9' },
@@ -30,7 +26,7 @@ const HEADERS_DARK = [
 
 interface ChartWidgetProps {
   title: string;
-  data: { period?: string; category?: string; count: number; [k: string]: any }[];
+  data: { period?: string; category?: string; count: number;[k: string]: any }[];
   defaultType?: 'bar' | 'pie';
   height?: number;
   color?: string;
@@ -55,15 +51,6 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
   const barColor = color || colors[headerIndex % colors.length];
   const isPie = defaultType === 'pie';
 
-  const ttStyle = {
-    backgroundColor: isDark ? '#1e1e1e' : '#fff',
-    border: `1px solid ${isDark ? '#333' : '#dee2e6'}`,
-    borderRadius: 3, color: isDark ? '#ffffff' : '#212529',
-    fontSize: 11, padding: '6px 10px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-  };
-  const axisStyle = { fontSize: 9, fill: isDark ? '#999' : '#777' };
-
   const fmtLabel = (v: string) => {
     if (!v) return '';
     const m = v.match(/^(\d{4})-(\d{2})$/);
@@ -74,6 +61,138 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
     return v.length > 16 ? v.slice(0, 14) + '..' : v;
   };
 
+  /* ── ECharts option ── */
+  const option = useMemo(() => {
+    if (!trimmedData.length) return null;
+
+    const textColor = isDark ? '#ffffff' : '#212529';
+    const axisLineColor = isDark ? '#333' : '#ced4da';
+    const splitLineColor = isDark ? 'rgba(100,116,139,0.15)' : '#e9ecef';
+    const axisLabelColor = isDark ? '#999' : '#777';
+
+    if (isPie) {
+      // Pie chart
+      const pieData = trimmedData.map((d, i) => ({
+        name: String(d[xKey] ?? ''),
+        value: Number(d.count) || 0,
+        itemStyle: { color: colors[i % colors.length] },
+      }));
+
+      return {
+        tooltip: {
+          trigger: 'item' as const,
+          formatter: (params: any): string =>
+            `<strong>${fmtLabel(params.name)}</strong><br/>${params.seriesName}: ${params.value.toLocaleString()} (${params.percent}%)`,
+          backgroundColor: isDark ? '#1e1e1e' : '#fff',
+          borderColor: isDark ? '#333' : '#dee2e6',
+          borderWidth: 1,
+          textStyle: { color: textColor, fontSize: 12 },
+          extraCssText: 'box-shadow: 0 2px 8px rgba(0,0,0,0.15);',
+        },
+        legend: {
+          bottom: 0,
+          left: 'center',
+          type: 'scroll' as const,
+          textStyle: { fontSize: 10, color: axisLabelColor },
+          itemWidth: 10,
+          itemHeight: 10,
+          itemGap: 8,
+        },
+        series: [
+          {
+            name: title,
+            type: 'pie' as const,
+            radius: '60%',
+            center: ['50%', '42%'],
+            data: pieData,
+            itemStyle: {
+              borderColor: isDark ? '#1a1a1a' : '#fff',
+              borderWidth: 1.5,
+              borderRadius: 3,
+            },
+            label: {
+              show: true,
+              formatter: (params: any) => `${fmtLabel(params.name)} ${params.percent}%`,
+              fontSize: 9,
+              color: axisLabelColor,
+            },
+            labelLine: {
+              show: true,
+              length: 6,
+              length2: 6,
+              lineStyle: { color: isDark ? '#555' : '#adb5bd' },
+            },
+            emphasis: {
+              itemStyle: {
+                shadowBlur: 10,
+                shadowColor: 'rgba(0,0,0,0.3)',
+              },
+            },
+          },
+        ],
+      };
+    }
+
+    // Bar chart
+    const categories = trimmedData.map((d) => fmtLabel(String(d[xKey] ?? '')));
+    const values = trimmedData.map((d) => Number(d.count) || 0);
+
+    return {
+      tooltip: {
+        trigger: 'axis' as const,
+        axisPointer: { type: 'shadow' as const },
+        formatter: (params: any): string => {
+          const p = Array.isArray(params) ? params[0] : params;
+          return `<strong>${p.name}</strong><br/>count: ${p.value.toLocaleString()}`;
+        },
+        backgroundColor: isDark ? '#1e1e1e' : '#fff',
+        borderColor: isDark ? '#333' : '#dee2e6',
+        borderWidth: 1,
+        textStyle: { color: textColor, fontSize: 12 },
+        extraCssText: 'box-shadow: 0 2px 8px rgba(0,0,0,0.15);',
+      },
+      grid: { top: 24, right: 12, bottom: 52, left: 40, containLabel: true },
+      xAxis: {
+        type: 'category' as const,
+        data: categories,
+        axisLine: { lineStyle: { color: axisLineColor } },
+        axisTick: { show: false },
+        axisLabel: {
+          fontSize: 9,
+          color: axisLabelColor,
+          rotate: 45,
+          interval: 0,
+        },
+      },
+      yAxis: {
+        type: 'value' as const,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: { fontSize: 9, color: axisLabelColor },
+        splitLine: { lineStyle: { color: splitLineColor, type: 'dashed' as const } },
+      },
+      series: [
+        {
+          name: 'count',
+          type: 'bar' as const,
+          data: values,
+          itemStyle: {
+            color: barColor,
+            borderRadius: [3, 3, 0, 0],
+          },
+          barMaxWidth: 32,
+          label: {
+            show: true,
+            position: 'top' as const,
+            fontSize: 9,
+            fontWeight: 700,
+            color: axisLabelColor,
+          },
+        },
+      ],
+    };
+  }, [trimmedData, isPie, isDark, colors, barColor, title, xKey]);
+
   if (!trimmedData.length) {
     return (
       <Box sx={{ border: `1px solid ${borderColor}`, height, display: 'flex', flexDirection: 'column' }}>
@@ -82,9 +201,9 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
         </Box>
         <Box sx={{
           flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          bgcolor: isDark ? '#1a1a1a' : '#fafbfc',
+          bgcolor: isDark ? '#1a1a1a' : '#fafbfc', px: 2,
         }}>
-          <Typography sx={{ fontSize: '0.78rem', color: isDark ? '#777' : '#868e96', fontStyle: 'italic' }}>
+          <Typography sx={{ fontSize: '0.78rem', color: isDark ? '#777' : '#868e96', fontStyle: 'italic', textAlign: 'center' }}>
             No data returned for this view. This might be because the applied filter excludes all data.
           </Typography>
         </Box>
@@ -104,50 +223,24 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
         px: 1.5, py: 0.5, background: hdr.bg,
         borderBottom: `1px solid ${borderColor}`, flexShrink: 0,
       }}>
-        <Typography sx={{ fontWeight: 700, fontSize: '0.74rem', color: hdr.text, flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <Typography sx={{
+          fontWeight: 700, fontSize: '0.74rem', color: hdr.text,
+          flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
           {title}
         </Typography>
       </Box>
 
       {/* ── Chart ── */}
-      <Box sx={{ flex: 1, px: 1, py: 0.5, minHeight: 0 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          {isPie ? (
-            <PieChart>
-              <Pie
-                data={trimmedData} dataKey="count" nameKey={xKey}
-                cx="50%" cy="50%" outerRadius="70%" innerRadius={0}
-                label={({ name, percent }: { name: string; percent: number }) =>
-                  `${fmtLabel(name)} ${(percent * 100).toFixed(1)}%`
-                }
-                labelLine={{ stroke: isDark ? '#777' : '#adb5bd', strokeWidth: 1 }}
-                fontSize={9} strokeWidth={1.5} stroke={isDark ? '#1a1a1a' : '#fff'}
-              >
-                {trimmedData.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
-              </Pie>
-              <Tooltip contentStyle={ttStyle} labelStyle={{ color: isDark ? '#ffffff' : '#212529' }} itemStyle={{ color: isDark ? '#ffffff' : '#212529' }} />
-              <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-            </PieChart>
-          ) : (
-            <BarChart data={trimmedData} margin={{ top: 18, right: 5, left: -18, bottom: 40 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(100,116,139,0.15)' : '#e9ecef'} vertical={false} />
-              <XAxis
-                dataKey={xKey} tick={axisStyle} tickFormatter={fmtLabel}
-                angle={-45} textAnchor="end" height={50} interval={0}
-                axisLine={{ stroke: isDark ? '#333' : '#ced4da' }} tickLine={false}
-              />
-              <YAxis tick={axisStyle} width={35} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={ttStyle} labelStyle={{ color: isDark ? '#ffffff' : '#212529' }} itemStyle={{ color: isDark ? '#ffffff' : '#212529' }} cursor={{ fill: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' }} />
-              <Bar dataKey="count" radius={[2, 2, 0, 0]} maxBarSize={30}>
-                {trimmedData.map((_, i) => <Cell key={i} fill={barColor} />)}
-                <LabelList
-                  dataKey="count" position="top"
-                  style={{ fontSize: 8, fontWeight: 700, fill: isDark ? '#999' : '#37474f' }}
-                />
-              </Bar>
-            </BarChart>
-          )}
-        </ResponsiveContainer>
+      <Box sx={{ flex: 1, px: 0.5, py: 0.5, minHeight: 0 }}>
+        {option && (
+          <ReactECharts
+            option={option}
+            style={{ width: '100%', height: '100%' }}
+            opts={{ renderer: 'svg' }}
+            notMerge
+          />
+        )}
       </Box>
     </Box>
   );

@@ -16,9 +16,11 @@ import {
   setError,
   clearError,
   updateMessageWithMetadata,
+  updateMessageAttachmentIds,
   setFollowUpSuggestions,
   setChatSessionId,
   setPendingClarification as setPendingClarificationAction,
+  renameSessionTitle,
 } from '../features/chatSlice';
 import type { ChatMessage } from '../features/chatSlice';
 import { sendQuery, stopMessage, submitClarification } from '../api';
@@ -57,7 +59,9 @@ export function useMessageHandler(
       return;
     }
     setCurrentProgressStep(next);
-    stepTimerRef.current = setTimeout(flushStepQueue, 700);
+    // Minimum on-screen time per step so the user actually sees each label
+    // (otherwise fast pipelines flash straight to the last one).
+    stepTimerRef.current = setTimeout(flushStepQueue, 1000);
   }, []);
 
   const enqueueStep = useCallback((label: string) => {
@@ -110,13 +114,19 @@ export function useMessageHandler(
       abortControllerRef.current = newAbortController;
 
       // Skip user bubble for clarification replies — the Q&A pair will be shown instead
+      let userMessageId: string | null = null;
       if (!isClarificationReplyRef.current) {
+        userMessageId = Date.now().toString();
         const userMessage: ChatMessage = {
-          id: Date.now().toString(),
+          id: userMessageId,
           role: 'user',
           content,
           timestamp: new Date().toISOString(),
           attachments: files ? files.map(f => f.name) : undefined,
+          attachmentMeta: files ? files.reduce((acc, f) => {
+            acc[f.name] = { size: f.size, type: f.type || f.name.split('.').pop() || '' };
+            return acc;
+          }, {} as Record<string, { size?: number; type?: string }>) : undefined,
         };
         dispatch(addUserMessage({ chatId: effectiveChatId, message: userMessage }));
       }
@@ -158,16 +168,29 @@ export function useMessageHandler(
         const response = responseWrapper.response;
         const databaseMessageId = responseWrapper.id || response?.id;
 
+        // If the server stored an uploaded file, wire its file_id into the user message chip
+        if (responseWrapper.fileStored && userMessageId && responseWrapper.fileStored.file_id) {
+          const { file_id, file_name } = responseWrapper.fileStored;
+          dispatch(updateMessageAttachmentIds({
+            chatId: effectiveChatId,
+            messageId: userMessageId,
+            attachmentIds: { [file_name]: file_id },
+          }));
+        }
+
         // Check if backend returned a session_id (in session_meta event)
         const backendSessionId = response?.metadata?.session_id;
         if (backendSessionId && backendSessionId !== currentSessionId) {
           dispatch(setChatSessionId({ chatId: effectiveChatId, sessionId: backendSessionId }));
         }
 
-        // Check for session title from backend
+        // Check for session title from backend and update locally immediately
         const sessionTitle = response?.metadata?.session_title;
-        if (sessionTitle && refreshSessions) {
-          refreshSessions().catch(() => {});
+        if (sessionTitle) {
+          dispatch(renameSessionTitle({ chatId: effectiveChatId, title: sessionTitle }));
+          if (refreshSessions) {
+            refreshSessions().catch(() => {});
+          }
         }
 
         const messageId = (Date.now() + 1).toString();
@@ -185,7 +208,9 @@ export function useMessageHandler(
 
         if (isClarificationOnly) {
           const cq = response.clarifying_question as ClarifyingQuestion;
-          setPendingClarification(cq);
+          // Use effectiveChatId directly — the closure's chatId may be stale (empty string)
+          // when a new chat is created mid-request (e.g. first message from welcome screen)
+          dispatch(setPendingClarificationAction({ chatId: effectiveChatId, clarification: cq }));
           clearStepQueue();
           dispatch(setLoading(null));
           return;

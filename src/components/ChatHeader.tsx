@@ -10,7 +10,8 @@ import {
   ToggleButton,
 } from '@mui/material';
 import { styled, keyframes } from '@mui/material/styles';
-import { Sparkles, LayoutDashboard, MessageSquare } from 'lucide-react';
+import { Sparkles, LayoutDashboard, MessageSquare, Download } from 'lucide-react';
+import { Button } from '@mui/material';
 import { MoreMenu } from './MoreMenu';
 
 const shimmer = keyframes`
@@ -71,6 +72,10 @@ interface ChatHeaderProps {
   isLoading?: boolean;
   viewMode?: 'chat' | 'dashboard';
   onViewModeChange?: (mode: 'chat' | 'dashboard') => void;
+  /** Show export button — only pass truthy when the current chat has messages */
+  canExport?: boolean;
+  /** Called when user clicks the export button */
+  onExport?: () => void;
 }
 
 export function ChatHeader({
@@ -82,6 +87,8 @@ export function ChatHeader({
   isLoading = false,
   viewMode,
   onViewModeChange,
+  canExport,
+  onExport,
 }: ChatHeaderProps) {
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
@@ -145,8 +152,31 @@ export function ChatHeader({
         </Box>
       </Box>
 
-      {/* Right side: view toggle */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+      {/* Right side: export + view toggle */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        {canExport && onExport && (
+          <Button
+            onClick={onExport}
+            size="small"
+            startIcon={<Download size={14} />}
+            sx={{
+              textTransform: 'none',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              px: 1.5, py: 0.4,
+              color: '#ffffff',
+              background: 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)',
+              borderRadius: 2,
+              boxShadow: '0 2px 6px rgba(13, 71, 161, 0.3)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #0a3d8f 0%, #1256a0 100%)',
+                boxShadow: '0 3px 10px rgba(13, 71, 161, 0.45)',
+              },
+            }}
+          >
+            Export
+          </Button>
+        )}
         {viewMode && onViewModeChange && (
           <ToggleButtonGroup
             value={viewMode} exclusive

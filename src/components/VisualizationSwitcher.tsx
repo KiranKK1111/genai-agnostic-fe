@@ -1,6 +1,7 @@
 /**
  * Visualization Switcher Component
- * Displays chart type selection icons in the top right of the message
+ * Displays chart type selection icons in the top right of the message.
+ * Uses lucide-react icons to match the rest of the app.
  */
 
 import React from 'react';
@@ -10,11 +11,14 @@ import {
   Tooltip,
   useTheme,
 } from '@mui/material';
-import PieChartIcon from '@mui/icons-material/PieChart';
-import BarChartIcon from '@mui/icons-material/BarChart';
-import ShowChartIcon from '@mui/icons-material/ShowChart';
-import TableChartIcon from '@mui/icons-material/TableChart';
-import ScatterPlotIcon from '@mui/icons-material/ScatterPlot';
+import {
+  Table2,
+  BarChart3,
+  LineChart as LineChartIcon,
+  PieChart as PieChartIcon,
+  Circle as CircleIcon,
+  ScatterChart,
+} from 'lucide-react';
 
 interface VisualizationSwitcherProps {
   availableViews: string[];
@@ -30,41 +34,40 @@ export function VisualizationSwitcher({
   compact = false,
 }: VisualizationSwitcherProps) {
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const iconSize = compact ? 16 : 18;
 
   const viewMap: Record<string, { icon: React.ReactElement; label: string }> = {
-    table: { icon: <TableChartIcon fontSize={compact ? 'small' : 'medium'} />, label: 'Table' },
-    pie: { icon: <PieChartIcon fontSize={compact ? 'small' : 'medium'} />, label: 'Pie Chart' },
-    bar: { icon: <BarChartIcon fontSize={compact ? 'small' : 'medium'} />, label: 'Bar Chart' },
-    line: { icon: <ShowChartIcon fontSize={compact ? 'small' : 'medium'} />, label: 'Line Chart' },
-    scatter: { icon: <ScatterPlotIcon fontSize={compact ? 'small' : 'medium'} />, label: 'Scatter Plot' },
+    table:   { icon: <Table2 size={iconSize} />,         label: 'Table' },
+    bar:     { icon: <BarChart3 size={iconSize} />,      label: 'Bar Chart' },
+    line:    { icon: <LineChartIcon size={iconSize} />,  label: 'Line Chart' },
+    pie:     { icon: <PieChartIcon size={iconSize} />,   label: 'Pie Chart' },
+    donut:   { icon: <CircleIcon size={iconSize} />,     label: 'Donut Chart' },
+    scatter: { icon: <ScatterChart size={iconSize} />,   label: 'Scatter Plot' },
   };
 
-  // Sort views with 'table' first, then others in order
-  const sortedViews = [
-    'table',
-    'pie',
-    'bar',
-    'line',
-    'scatter',
-  ].filter(view => availableViews.includes(view));
+  // Render order: table → bar → line → pie → donut → scatter
+  const sortedViews = ['table', 'bar', 'line', 'pie', 'donut', 'scatter']
+    .filter((view) => availableViews.includes(view));
 
-  if (sortedViews.length === 0) {
-    return null;
-  }
+  if (sortedViews.length === 0) return null;
 
   return (
     <Box
       sx={{
         display: 'flex',
-        gap: compact ? 0.5 : 1,
+        gap: compact ? 0.5 : 0.75,
         flexDirection: 'row',
+        p: 0.4,
+        borderRadius: '8px',
+        background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+        border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`,
       }}
     >
       {sortedViews.map((view) => {
-        const mapping = viewMap[view] || { icon: null, label: view };
+        const mapping = viewMap[view];
+        if (!mapping) return null;
         const isActive = selectedView === view;
-
-        if (!mapping.icon) return null;
 
         return (
           <Tooltip key={view} title={mapping.label} placement="top">
@@ -72,22 +75,24 @@ export function VisualizationSwitcher({
               size={compact ? 'small' : 'medium'}
               onClick={() => onViewChange(view)}
               sx={{
-                backgroundColor: isActive
-                  ? theme.palette.mode === 'dark'
-                    ? 'rgba(59, 130, 246, 0.3)'
-                    : 'rgba(59, 130, 246, 0.15)'
+                width: compact ? 28 : 32,
+                height: compact ? 28 : 32,
+                borderRadius: '6px',
+                color: isActive
+                  ? '#fff'
+                  : (isDark ? '#999' : '#6c757d'),
+                background: isActive
+                  ? 'linear-gradient(135deg, #0d47a1 0%, #1565c0 100%)'
                   : 'transparent',
-                color: isActive ? 'primary.main' : 'text.secondary',
-                borderRadius: 1,
-                border: isActive ? `1px solid ${theme.palette.primary.main}` : 'none',
-                transition: 'all 0.2s ease',
+                boxShadow: isActive
+                  ? '0 2px 6px rgba(13, 71, 161, 0.35)'
+                  : 'none',
+                transition: 'all 0.15s ease',
                 '&:hover': {
-                  backgroundColor: isActive
-                    ? theme.palette.mode === 'dark'
-                      ? 'rgba(59, 130, 246, 0.4)'
-                      : 'rgba(59, 130, 246, 0.2)'
-                    : theme.palette.action.hover,
-                  transform: 'scale(1.05)',
+                  background: isActive
+                    ? 'linear-gradient(135deg, #0a3d8f 0%, #1256a0 100%)'
+                    : (isDark ? 'rgba(21, 101, 192, 0.15)' : 'rgba(13, 71, 161, 0.08)'),
+                  color: isActive ? '#fff' : (isDark ? '#60a5fa' : '#0d47a1'),
                 },
               }}
             >

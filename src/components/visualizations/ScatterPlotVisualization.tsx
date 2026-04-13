@@ -20,6 +20,12 @@ export function ScatterPlotVisualization({
   data,
 }: ScatterPlotVisualizationProps) {
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const tooltipStyle = {
+    backgroundColor: isDark ? '#ffffff' : '#1a1a1a',
+    borderColor:     isDark ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)',
+    textStyle:       { color: isDark ? '#1a1a1a' : '#ffffff' },
+  };
   const height = 400;
 
   const option = useMemo(() => {
@@ -42,8 +48,7 @@ export function ScatterPlotVisualization({
         formatter: function (params: any) {
           return `${columns[0]}: ${params.value[0]}<br/>${columns[1]}: ${params.value[1]}`;
         },
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        borderColor: 'rgba(59, 130, 246, 0.5)',
+        ...tooltipStyle,
       },
       xAxis: {
         type: 'value',
